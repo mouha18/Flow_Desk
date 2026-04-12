@@ -1,42 +1,39 @@
-import { View, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator, TextInput, Alert } from "react-native";
-import { Stack, useLocalSearchParams, useRouter } from "expo-router";
-import { Heading, Typography, Screen, Card, Badge, Button } from "@/components/ui";
+import { useState } from "react";
+import { StyleSheet, View, Alert } from "react-native";
+import { Stack, useLocalSearchParams } from "expo-router";
+import { Typography, Screen, Card, Button } from "@/components/ui";
+import { Input } from "@/components/ui/input";
+import { TaskList } from "@/components/tasks/TaskList";
+import { useTasks } from "@/hooks/useTasks";
+import { useContractById } from "@/hooks/useContracts";
 import { colors } from "@/constants/colors";
 import { spacing } from "@/constants/spacing";
-import { useTasks, useCreateTask, useUpdateTaskStatus, useStartTimer, useStopTimer, formatTimeSpent } from "@/hooks/use-tasks";
-import { useContract } from "@/hooks/use-contracts";
-import { useState } from "react";
+import type { Id } from "@/convex/_generated/dataModel";
+import type { Task } from "@/types";
 
-export default function FreelancerTasksScreen() {
+export default function FreelancerContractTasksScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const router = useRouter();
-  const { contract } = useContract(id || null);
-  const { tasks, isLoading } = useTasks(id || null);
-  const { createTask } = useCreateTask();
-  const { updateStatus } = useUpdateTaskStatus();
-  const { startTimer } = useStartTimer();
-  const { stopTimer } = useStopTimer();
+  const contractId = id as Id<"contracts"> | undefined;
+  const { contract } = useContractById(contractId);
+  const { tasks, isLoading, completionPercent, createTask, updateStatus, deleteTask, startTimer, stopTimer } = useTasks(contractId);
+  
+  const [showAddForm, setShowAddForm] = useState(false);
   const [newTaskTitle, setNewTaskTitle] = useState("");
   const [isCreating, setIsCreating] = useState(false);
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case "completed": return colors.success;
-      case "running": return colors.warning;
-      case "pending": return colors.gray500;
-      default: return colors.gray500;
+  const handleAddTask = async () => {
+    if (!newTaskTitle.trim() || !contractId) {
+      Alert.alert("Error", "Please enter a task title");
+      return;
     }
-  };
-
-  const handleCreateTask = async () => {
-    if (!newTaskTitle.trim() || !id) return;
-    setIsCreating(true);
     try {
+      setIsCreating(true);
       await createTask({
-        contractId: id,
+        contractId,
         title: newTaskTitle.trim(),
       });
       setNewTaskTitle("");
+      setShowAddForm(false);
     } catch (error) {
       Alert.alert("Error", "Failed to create task");
     } finally {
@@ -44,102 +41,51 @@ export default function FreelancerTasksScreen() {
     }
   };
 
-  const handleToggleStatus = async (task: any) => {
-    try {
-      if (task.status === "completed") {
-        await updateStatus({ taskId: task._id, status: "pending" });
-      } else {
-        await updateStatus({ taskId: task._id, status: "completed" });
-      }
-    } catch (error) {
-      Alert.alert("Error", "Failed to update task");
+  const handleTaskPress = async (task: Task) => {
+    // Pending task: start timer to begin work
+    if (task.status === "pending") {
+      await startTimer({ taskId: task._id as Id<"tasks"> });
     }
   };
 
-  const handleStartTimer = async (taskId: string) => {
-    try {
-      await startTimer(taskId as any);
-    } catch (error) {
-      Alert.alert("Error", "Failed to start timer");
+  const handleStopTimer = async (task: Task) => {
+    // Running task: stop timer to complete
+    if (task.status === "running") {
+      await stopTimer({ taskId: task._id as Id<"tasks"> });
     }
   };
 
-  const handleStopTimer = async (taskId: string) => {
-    try {
-      await stopTimer(taskId as any);
-    } catch (error) {
-      Alert.alert("Error", "Failed to stop timer");
-    }
+  const handleDeleteTask = async (taskId: string) => {
+    Alert.alert(
+      "Delete Task",
+      "Are you sure you want to delete this task?",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              await deleteTask({ taskId: taskId as Id<"tasks"> });
+            } catch (error) {
+              Alert.alert("Error", "Failed to delete task");
+            }
+          },
+        },
+      ]
+    );
   };
 
-  const renderTask = ({ item }: { item: any }) => (
-    <Card style={styles.taskCard}>
-      <TouchableOpacity 
-        onPress={() => handleToggleStatus(item)}
-        style={styles.taskContent}
-      >
-        <View style={styles.taskHeader}>
-          <View style={styles.checkbox}>
-            {item.status === "completed" && (
-              <View style={styles.checkboxChecked} />
-            )}
-          </View>
-          <Typography 
-            variant="body" 
-            style={[
-              styles.taskTitle,
-              item.status === "completed" && styles.completedTask
-            ]}
-          >
-            {item.title}
-          </Typography>
-          <Badge label={item.status} color={getStatusColor(item.status)} />
-        </View>
-        
-        <View style={styles.taskDetails}>
-          {item.timeSpent !== null && (
-            <Typography variant="caption" color={colors.gray500}>
-              Time: {formatTimeSpent(item.timeSpent)}
-            </Typography>
-          )}
-          {item.hourlyRate && (
-            <Typography variant="caption" color={colors.gray500}>
-              ${item.hourlyRate}/hr
-            </Typography>
-          )}
-        </View>
-
-        {item.status === "running" && item.startedAt && (
-          <View style={styles.timerActions}>
-            <Button 
-              label="Stop Timer" 
-              onPress={() => handleStopTimer(item._id)}
-              variant="secondary"
-              size="small"
-            />
-          </View>
-        )}
-
-        {item.status !== "running" && item.status !== "completed" && (
-          <View style={styles.timerActions}>
-            <Button 
-              label="Start Timer" 
-              onPress={() => handleStartTimer(item._id)}
-              variant="primary"
-              size="small"
-            />
-          </View>
-        )}
-      </TouchableOpacity>
-    </Card>
-  );
-
-  if (isLoading) {
+  if (!contractId) {
     return (
       <>
         <Stack.Screen options={{ title: "Tasks" }} />
         <Screen style={styles.container}>
-          <ActivityIndicator size="large" color={colors.primary} />
+          <Card style={styles.errorCard}>
+            <Typography variant="bodySmall" color={colors.error}>
+              Contract not found
+            </Typography>
+          </Card>
         </Screen>
       </>
     );
@@ -147,41 +93,75 @@ export default function FreelancerTasksScreen() {
 
   return (
     <>
-      <Stack.Screen 
-        options={{ 
-          title: `Tasks - ${contract?.title || "Contract"}`,
-        }} 
+      <Stack.Screen
+        options={{
+          title: "Tasks",
+          headerLargeTitle: false,
+        }}
       />
       <Screen style={styles.container}>
-        <View style={styles.createTaskContainer}>
-          <TextInput
-            style={styles.input}
-            placeholder="New task title..."
-            value={newTaskTitle}
-            onChangeText={setNewTaskTitle}
-            placeholderTextColor={colors.gray400}
-          />
-          <Button 
-            label={isCreating ? "Adding..." : "Add Task"} 
-            onPress={handleCreateTask}
-            variant="primary"
-            disabled={!newTaskTitle.trim() || isCreating}
-          />
-        </View>
-
-        {tasks && tasks.length > 0 ? (
-          <FlatList
-            data={tasks}
-            renderItem={renderTask}
-            keyExtractor={(item) => item._id}
-            contentContainerStyle={styles.list}
-          />
-        ) : (
-          <Card style={styles.emptyState}>
-            <Typography variant="body" color={colors.gray500}>
-              No tasks yet. Add your first task above.
+        {isLoading ? (
+          <Card style={styles.loadingCard}>
+            <Typography variant="bodySmall" color={colors.gray500}>
+              Loading tasks...
             </Typography>
           </Card>
+        ) : (
+            <TaskList
+              contract={contract}
+              tasks={tasks as Task[]}
+              completionPercent={completionPercent}
+              onTaskPress={handleTaskPress}
+              onStopTimer={handleStopTimer}
+              onStartTimer={handleTaskPress}
+              style={styles.taskList}
+            />
+        )}
+        
+        {showAddForm ? (
+          <Card style={styles.addForm}>
+            <Typography variant="label" style={styles.formLabel}>
+              New Task
+            </Typography>
+            <Input
+              placeholder="Task title"
+              value={newTaskTitle}
+              onChangeText={setNewTaskTitle}
+              containerStyle={styles.inputContainer}
+            />
+            {contract?.pricingType === "hourly" && contract?.hourlyRate && (
+              <View style={styles.rateDisplay}>
+                <Typography variant="bodySmall" color={colors.gray500}>
+                  Rate: ${contract.hourlyRate}/hr (from contract)
+                </Typography>
+              </View>
+            )}
+            <View style={styles.formButtons}>
+              <Button
+                title="Cancel"
+                variant="outline"
+                onPress={() => {
+                  setShowAddForm(false);
+                  setNewTaskTitle("");
+                }}
+                style={styles.formButton}
+              />
+              <Button
+                title="Add"
+                variant="primary"
+                onPress={handleAddTask}
+                loading={isCreating}
+                style={styles.formButton}
+              />
+            </View>
+          </Card>
+        ) : (
+          <Button
+            title="+ Add Task"
+            variant="primary"
+            onPress={() => setShowAddForm(true)}
+            style={styles.addButton}
+          />
         )}
       </Screen>
     </>
@@ -192,75 +172,42 @@ const styles = StyleSheet.create({
   container: {
     backgroundColor: colors.gray50,
   },
-  createTaskContainer: {
-    flexDirection: "row",
-    gap: spacing[2],
-    marginBottom: spacing[4],
-    padding: spacing[4],
-    backgroundColor: colors.white,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.gray200,
-  },
-  input: {
-    flex: 1,
-    borderWidth: 1,
-    borderColor: colors.gray300,
-    borderRadius: 8,
-    padding: spacing[3],
-    fontSize: 16,
-    color: colors.gray900,
-  },
-  list: {
-    padding: spacing[4],
-  },
-  taskCard: {
-    marginBottom: spacing[3],
-    padding: spacing[3],
-  },
-  taskContent: {
-    width: "100%",
-  },
-  taskHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: spacing[2],
-  },
-  checkbox: {
-    width: 20,
-    height: 20,
-    borderWidth: 2,
-    borderColor: colors.gray400,
-    borderRadius: 4,
-    marginRight: spacing[2],
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  checkboxChecked: {
-    width: 12,
-    height: 12,
-    backgroundColor: colors.success,
-    borderRadius: 2,
-  },
-  taskTitle: {
-    flex: 1,
-    marginRight: spacing[2],
-  },
-  completedTask: {
-    textDecorationLine: "line-through",
-    color: colors.gray500,
-  },
-  taskDetails: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    marginLeft: spacing[6],
-    marginBottom: spacing[2],
-  },
-  timerActions: {
-    marginLeft: spacing[6],
-  },
-  emptyState: {
+  loadingCard: {
     alignItems: "center",
     padding: spacing[8],
+  },
+  errorCard: {
+    alignItems: "center",
+    padding: spacing[8],
+  },
+  taskList: {
+    flex: 1,
+  },
+  addForm: {
+    margin: spacing[4],
+    padding: spacing[4],
+  },
+  formLabel: {
+    marginBottom: spacing[2],
+  },
+  inputContainer: {
+    marginBottom: spacing[3],
+  },
+  rateDisplay: {
+    padding: spacing[3],
+    backgroundColor: colors.gray50,
+    borderRadius: 8,
+    marginBottom: spacing[2],
+  },
+  formButtons: {
+    flexDirection: "row",
+    gap: spacing[3],
+    marginTop: spacing[2],
+  },
+  formButton: {
+    flex: 1,
+  },
+  addButton: {
     margin: spacing[4],
   },
 });

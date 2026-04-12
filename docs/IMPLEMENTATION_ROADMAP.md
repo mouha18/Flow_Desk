@@ -1,7 +1,7 @@
 # Flowdesk — Implementation Roadmap
 
 **Version:** 1.0  
-**Last Updated:** 2026-04-05  
+**Last Updated:** 2026-04-09  
 **Total Sprints:** 4  
 **Sprint Length:** 1 week  
 
@@ -18,12 +18,12 @@
 
 ---
 
-#### Sprint 1 — Foundation
+#### Sprint 1 — Foundation ✅ COMPLETED
 **Goal:** Navigation skeleton, auth, Convex schema, and design system live. Every screen is reachable, no data yet.  
 **Deliverable:** Login → Role select → Freelancer/Client dashboard (empty state). Push token registered on launch.
 
 | # | Task | Type | Files Involved | Status |
-|---|---|---|---|---|
+|---|---|---|---|
 | 1 | Expo project init (managed, TypeScript) | `infra` | `app.json`, `package.json`, `tsconfig.json` | ✅ |
 | 2 | Install all dependencies (Convex, React Navigation, expo-sqlite, expo-notifications) | `infra` | `package.json` | ✅ |
 | 3 | Define all TypeScript types | `chore` | `src/types/index.ts` | ✅ |
@@ -49,48 +49,48 @@
 
 ---
 
-#### Sprint 2 — Core Features (Contracts + Tasks + Chat)
+#### Sprint 2 — Core Features (Contracts + Tasks + Chat) ✅ COMPLETED
 **Goal:** Full freelancer → contract → task → chat flow working end to end with real Convex data.  
 **Deliverable:** Freelancer creates contract, client accepts/declines, freelancer adds tasks with timer, both parties chat in real time.
 
 | # | Task | Type | Files Involved | Status |
-|---|---|---|---|---|
-| 1 | Implement `convex/users.ts` (me, updateProfile) | `feat` | `convex/users.ts`, `hooks/useCurrentUser.ts` | 📋 |
-| 2 | Implement `convex/contracts.ts` (create, list, getById, accept, decline) | `feat` | `convex/contracts.ts` | 📋 |
-| 3 | Build `useContracts` hook | `feat` | `hooks/useContracts.ts` | 📋 |
-| 4 | Build Freelancer contract list screen + ContractCard component | `feat` | `app/(freelancer)/contracts/index.tsx`, `components/contracts/ContractCard.tsx` | 📋 |
-| 5 | Build Create Contract form screen | `feat` | `app/(freelancer)/contracts/new.tsx`, `components/contracts/CreateContractForm.tsx` | 📋 |
-| 6 | Build Contract Detail screen (freelancer view) | `feat` | `app/(freelancer)/contracts/[id]/index.tsx` | 📋 |
-| 7 | Build Client dashboard + pending contract list | `feat` | `app/(client)/dashboard/index.tsx` | 📋 |
-| 8 | Build Client contract detail + accept/decline UI | `feat` | `app/(client)/contracts/[id]/index.tsx` | 📋 |
-| 9 | Implement `convex/tasks.ts` (create, list, updateStatus, startTimer, stopTimer, setHourlyRate, delete) | `feat` | `convex/tasks.ts` | 📋 |
-| 10 | Build `useTasks` hook + completionPercent calculation | `feat` | `hooks/useTasks.ts` | 📋 |
-| 11 | Build Task list screen with TimerControl + CompletionBar | `feat` | `app/(freelancer)/contracts/[id]/tasks.tsx`, `components/tasks/*` | 📋 |
-| 12 | Implement `convex/messages.ts` (send, listByContract paginated) | `feat` | `convex/messages.ts` | 📋 |
-| 13 | Build `useMessages` hook | `feat` | `hooks/useMessages.ts` | 📋 |
-| 14 | Build Chat screen (freelancer + client, same component) | `feat` | `app/(freelancer)/chat/[contractId].tsx`, `app/(client)/chat/[contractId].tsx` | 📋 |
-| 15 | Cache contracts + tasks + messages in SQLite after load | `feat` | `lib/sqlite.ts`, hooks | 📋 |
-| 16 | Implement `convex/notifications.ts` (list, markRead, markAllRead) | `feat` | `convex/notifications.ts`, `hooks/useNotifications.ts` | 📋 |
-| 17 | Build notification inbox screen (both roles) | `feat` | `app/(freelancer)/notifications/index.tsx`, `app/(client)/notifications/index.tsx` | 📋 |
+|---|---|---|---|
+| 1 | Implement `convex/users.ts` (me, updateProfile) | `feat` | `convex/users.ts`, `hooks/useCurrentUser.ts` | ✅ |
+| 2 | Implement `convex/contracts.ts` (create, list, getById, accept, decline) | `feat` | `convex/contracts.ts` | ✅ |
+| 3 | Build `useContracts` hook | `feat` | `hooks/useContracts.ts` | ✅ |
+| 4 | Build Freelancer contract list screen + ContractCard component | `feat` | `app/(freelancer)/contracts/index.tsx`, `components/contracts/ContractCard.tsx` | ✅ |
+| 5 | Build Create Contract form screen | `feat` | `app/(freelancer)/contracts/new.tsx`, `components/contracts/CreateContractForm.tsx` | ✅ |
+| 6 | Build Contract Detail screen (freelancer view) | `feat` | `app/(freelancer)/contracts/[id]/index.tsx` | ✅ |
+| 7 | Build Client dashboard + pending contract list | `feat` | `app/(client)/dashboard/index.tsx` | ✅ |
+| 8 | Build Client contract detail + accept/decline UI | `feat` | `app/(client)/contracts/[id]/index.tsx` | ✅ |
+| 9 | Implement `convex/tasks.ts` (create, list, updateStatus, startTimer, stopTimer, setHourlyRate, delete) | `feat` | `convex/tasks.ts` | ✅ |
+| 10 | Build `useTasks` hook + completionPercent calculation | `feat` | `hooks/useTasks.ts` | ✅ |
+| 11 | Build Task list screen with TimerControl + CompletionBar | `feat` | `app/(freelancer)/contracts/[id]/tasks.tsx`, `components/tasks/*` | ✅ |
+| 12 | Implement `convex/messages.ts` (send, listByContract paginated) | `feat` | `convex/messages.ts` | ✅ |
+| 13 | Build `useMessages` hook | `feat` | `hooks/useMessages.ts` | ✅ |
+| 14 | Build Chat screen (freelancer + client, same component) | `feat` | `app/(freelancer)/chat/[contractId].tsx`, `app/(client)/chat/[contractId].tsx` | ✅ |
+| 15 | Cache contracts + tasks + messages in SQLite after load | `feat` | `lib/sqlite.ts`, hooks | ✅ |
+| 16 | Implement `convex/notifications.ts` (list, markRead, markAllRead) | `feat` | `convex/notifications.ts`, `hooks/useNotifications.ts` | ✅ |
+| 17 | Build notification inbox screen (both roles) | `feat` | `app/(freelancer)/notifications/index.tsx`, `app/(client)/notifications/index.tsx` | ✅ |
 
 **Definition of Done:**
-- [ ] Freelancer creates a contract and it appears in their list
-- [ ] Client sees the contract and can accept or decline
-- [ ] Accepted contract shows as active on both dashboards
-- [ ] Freelancer adds tasks, toggles status, starts/stops timer, sees timeSpent
-- [ ] Completion percentage updates in real time as tasks complete
-- [ ] Both parties send and receive messages in real time
-- [ ] Notifications appear in inbox for contract events
-- [ ] Contracts and tasks readable offline via SQLite
+- [x] Freelancer creates a contract and it appears in their list
+- [x] Client sees the contract and can accept or decline
+- [x] Accepted contract shows as active on both dashboards
+- [x] Freelancer adds tasks, toggles status, starts/stops timer, sees timeSpent
+- [x] Completion percentage updates in real time as tasks complete
+- [x] Both parties send and receive messages in real time
+- [x] Notifications appear in inbox for contract events
+- [x] Contracts and tasks readable offline via SQLite
 
 ---
 
-#### Sprint 3 — AI Layer + Invoice + Payment Simulation
+#### Sprint 3 — AI Layer + Invoice + Payment Simulation 📋
 **Goal:** AI email generation wired into contract creation; AI invoice generation at 100% completion; payment simulation releases deliverable.  
 **Deliverable:** Full lifecycle demo-ready: create contract → AI email → work → 100% → AI invoice → edit → send → client pays → deliverable link received.
 
 | # | Task | Type | Files Involved | Status |
-|---|---|---|---|---|
+|---|---|---|---|
 | 1 | Implement `convex/actions/ai.ts` — email generation (Anthropic API) | `feat` | `convex/actions/ai.ts` | 📋 |
 | 2 | Wire AI email generation into `contracts:create` mutation | `feat` | `convex/contracts.ts` | 📋 |
 | 3 | Implement `convex/actions/email.ts` — 3 Resend triggers (accept, invoice, payment) | `feat` | `convex/actions/email.ts` | 📋 |
@@ -119,12 +119,12 @@
 
 ---
 
-#### Sprint 4 — Polish, Empty States, Demo Prep
+#### Sprint 4 — Polish, Empty States, Demo Prep 📋
 **Goal:** Every screen has a proper empty state, loading state, and error state. UI is polished and demo-ready. No new features.  
 **Deliverable:** App ready for final project presentation with complete end-to-end demo flow working flawlessly.
 
 | # | Task | Type | Files Involved | Status |
-|---|---|---|---|---|
+|---|---|---|---|
 | 1 | Add empty states to all list screens (no contracts, no tasks, no messages) | `feat` | All list screens | 📋 |
 | 2 | Add loading skeletons / activity indicators to all data-fetching screens | `feat` | All screens | 📋 |
 | 3 | Add error boundaries + retry UI for failed Convex queries | `feat` | All screens | 📋 |
@@ -151,20 +151,20 @@
 
 ## Full Feature Checklist
 
-- [ ] User registration + role selection — Sprint 1
-- [ ] Auth guard + role-based navigation — Sprint 1
-- [ ] Push token registration — Sprint 1
-- [ ] Design system + base components — Sprint 1
-- [ ] AsyncStorage (token, role, prefs) — Sprint 1
-- [ ] SQLite init + cache tables — Sprint 1
-- [ ] Contract creation form — Sprint 2
-- [ ] Contract accept / decline — Sprint 2
-- [ ] Task management (CRUD + status) — Sprint 2
-- [ ] Task timer (start/stop, timeSpent) — Sprint 2
-- [ ] Completion percentage — Sprint 2
-- [ ] Real-time chat — Sprint 2
-- [ ] Notification inbox — Sprint 2
-- [ ] SQLite cache sync (contracts, tasks, messages) — Sprint 2
+- [x] User registration + role selection — Sprint 1
+- [x] Auth guard + role-based navigation — Sprint 1
+- [x] Push token registration — Sprint 1
+- [x] Design system + base components — Sprint 1
+- [x] AsyncStorage (token, role, prefs) — Sprint 1
+- [x] SQLite init + cache tables — Sprint 1
+- [x] Contract creation form — Sprint 2
+- [x] Contract accept / decline — Sprint 2
+- [x] Task management (CRUD + status) — Sprint 2
+- [x] Task timer (start/stop, timeSpent) — Sprint 2
+- [x] Completion percentage — Sprint 2
+- [x] Real-time chat — Sprint 2
+- [x] Notification inbox — Sprint 2
+- [x] SQLite cache sync (contracts, tasks, messages) — Sprint 2
 - [ ] AI outreach email generation — Sprint 3
 - [ ] Resend email triggers (3 events) — Sprint 3
 - [ ] Expo push notification sends (all events) — Sprint 3

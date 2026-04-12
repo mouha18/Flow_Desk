@@ -1,67 +1,51 @@
-import { View, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator } from "react-native";
+import { View, StyleSheet, FlatList, Pressable } from "react-native";
 import { Stack, useRouter } from "expo-router";
-import { Heading, Typography, Screen, Card, Badge } from "@/components/ui";
+import { Heading, Typography, Screen, Card } from "@/components/ui";
+import { ContractCard } from "@/components/contracts/ContractCard";
 import { colors } from "@/constants/colors";
 import { spacing } from "@/constants/spacing";
-import { useContracts } from "@/hooks/use-contracts";
+import { useContracts } from "@/hooks/useContracts";
+import { useTasks } from "@/hooks/useTasks";
+import type { Contract } from "@/types";
 
 export default function FreelancerContractsScreen() {
   const router = useRouter();
   const { contracts, isLoading } = useContracts();
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case "active": return colors.success;
-      case "pending": return colors.warning;
-      case "completed": return colors.primary;
-      case "declined": return colors.error;
-      default: return colors.gray500;
-    }
+  const handleContractPress = (contract: Contract) => {
+    router.push(`/(freelancer)/contracts/${contract._id}`);
   };
 
-  const renderContract = ({ item }: { item: any }) => (
-    <TouchableOpacity 
-      onPress={() => router.push(`/contracts/${item._id}`)}
-      style={styles.contractCard}
-    >
-      <Card>
-        <View style={styles.contractHeader}>
-          <Heading level="h3" style={styles.contractTitle}>{item.title}</Heading>
-          <Badge 
-            label={item.status} 
-            color={getStatusColor(item.status)} 
-          />
-        </View>
-        <Typography variant="bodySmall" color={colors.gray600}>
-          Client: {item.clientName}
-        </Typography>
-        <View style={styles.contractDetails}>
-          <Typography variant="bodySmall" color={colors.gray500}>
-            {item.pricingType === "fixed" ? `$${item.fixedPrice}` : "Hourly"}
-          </Typography>
-          <Typography variant="bodySmall" color={colors.gray500}>
-            {item.completionPercent}% complete
-          </Typography>
-        </View>
-      </Card>
-    </TouchableOpacity>
-  );
-
-  if (isLoading) {
+  // Helper component to calculate completion per contract
+  const ContractCardWithCompletion = ({ contract }: { contract: Contract }) => {
+    const { tasks } = useTasks(contract._id as any);
+    const taskList = (tasks ?? []) as any[];
+    const totalTasks = taskList.length;
+    const completedTasks = taskList.filter((t: any) => t.status === "completed").length;
+    const completionPercent = totalTasks > 0 ? (completedTasks / totalTasks) * 100 : 0;
+    
     return (
-      <>
-        <Stack.Screen
-          options={{
-            title: "Contracts",
-            headerLargeTitle: true,
-          }}
-        />
-        <Screen style={styles.container}>
-          <ActivityIndicator size="large" color={colors.primary} />
-        </Screen>
-      </>
+      <ContractCard
+        contract={contract}
+        onPress={handleContractPress}
+        style={styles.card}
+        completionPercent={completionPercent}
+      />
     );
-  }
+  };
+
+  const handleCreatePress = () => {
+    router.push("/(freelancer)/contracts/new");
+  };
+
+  const renderEmptyState = () => (
+    <Card style={styles.emptyState}>
+      <Heading level="h3">No contracts yet</Heading>
+      <Typography variant="bodySmall" color={colors.gray500} style={styles.emptyText}>
+        Create your first contract to start working
+      </Typography>
+    </Card>
+  );
 
   return (
     <>
@@ -69,38 +53,33 @@ export default function FreelancerContractsScreen() {
         options={{
           title: "Contracts",
           headerLargeTitle: true,
-          headerRight: () => (
-            <TouchableOpacity 
-              onPress={() => router.push("/contracts/new")}
-              style={styles.addButton}
-            >
-              <Typography variant="body" color={colors.primary}>+ New</Typography>
-            </TouchableOpacity>
-          ),
         }}
       />
-      <Screen style={styles.container}>
-        {contracts && contracts.length > 0 ? (
-          <FlatList
-            data={contracts}
-            renderItem={renderContract}
-            keyExtractor={(item) => item._id}
-            contentContainerStyle={styles.list}
-          />
-        ) : (
-          <Card style={styles.emptyState}>
-            <Heading level="h3">No contracts yet</Heading>
-            <Typography variant="bodySmall" color={colors.gray500} style={styles.emptyText}>
-              Create your first contract to start working
+      <Screen style={styles.container} scrollable={false}>
+        {isLoading ? (
+          <Card style={styles.loadingState}>
+            <Typography variant="bodySmall" color={colors.gray500}>
+              Loading contracts...
             </Typography>
-            <TouchableOpacity 
-              onPress={() => router.push("/contracts/new")}
-              style={styles.createButton}
-            >
-              <Typography variant="body" color={colors.white}>Create Contract</Typography>
-            </TouchableOpacity>
           </Card>
+        ) : contracts.length === 0 ? (
+          renderEmptyState()
+        ) : (
+          <FlatList
+            data={contracts as Contract[]}
+            keyExtractor={(item) => item._id}
+            renderItem={({ item }) => (
+              <ContractCardWithCompletion contract={item} />
+            )}
+            contentContainerStyle={styles.list}
+            showsVerticalScrollIndicator={false}
+          />
         )}
+        
+        {/* Floating Action Button */}
+        <Pressable style={styles.fab} onPress={handleCreatePress}>
+          <Typography style={styles.fabText}>+</Typography>
+        </Pressable>
       </Screen>
     </>
   );
@@ -112,26 +91,17 @@ const styles = StyleSheet.create({
   },
   list: {
     padding: spacing[4],
+    paddingBottom: 100,
   },
-  contractCard: {
-    marginBottom: spacing[4],
-  },
-  contractHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: spacing[2],
-  },
-  contractTitle: {
-    flex: 1,
-    marginRight: spacing[2],
-  },
-  contractDetails: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    marginTop: spacing[2],
+  card: {
+    marginBottom: spacing[3],
   },
   emptyState: {
+    alignItems: "center",
+    padding: spacing[8],
+    marginTop: spacing[4],
+  },
+  loadingState: {
     alignItems: "center",
     padding: spacing[8],
     marginTop: spacing[4],
@@ -140,14 +110,26 @@ const styles = StyleSheet.create({
     marginTop: spacing[2],
     textAlign: "center",
   },
-  addButton: {
-    padding: spacing[2],
+  fab: {
+    position: "absolute",
+    right: spacing[6],
+    bottom: spacing[6],
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: colors.freelancer,
+    justifyContent: "center",
+    alignItems: "center",
+    elevation: 4,
+    shadowColor: colors.black,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
   },
-  createButton: {
-    marginTop: spacing[4],
-    backgroundColor: colors.primary,
-    paddingHorizontal: spacing[6],
-    paddingVertical: spacing[3],
-    borderRadius: 8,
+  fabText: {
+    color: colors.white,
+    fontSize: 28,
+    fontWeight: "400",
+    marginTop: -2,
   },
 });

@@ -11,17 +11,28 @@ export default defineSchema({
     freelancerId: v.id("users"),
     clientId: v.optional(v.id("users")),
     clientEmail: v.string(),
-    clientName: v.string(),
-    clientPseudo: v.string(),
+    clientName: v.optional(v.string()),
+    clientPseudo: v.optional(v.string()),
     title: v.string(),
     status: v.union(
       v.literal("pending"),
       v.literal("active"),
       v.literal("completed"),
-      v.literal("declined")
+      v.literal("declined"),
+      v.literal("finished"),
+      v.literal("disputed")
     ),
+    escrowStatus: v.optional(v.union(
+      v.literal("held"),
+      v.literal("delivered"),
+      v.literal("released"),
+      v.literal("refunded")
+    )),
+    escrowPaidAt: v.optional(v.number()),
+    escrowReleasedAt: v.optional(v.number()),
     pricingType: v.union(v.literal("fixed"), v.literal("hourly")),
     fixedPrice: v.optional(v.number()),
+    hourlyRate: v.optional(v.number()),
     paymentTiming: v.union(v.literal("now"), v.literal("later")),
     paymentMethod: v.union(
       v.literal("stripe"),
@@ -31,10 +42,17 @@ export default defineSchema({
     aiEmailTone: v.union(v.literal("formal"), v.literal("friendly"), v.literal("casual")),
     completionPercent: v.number(),
     deliverableLink: v.optional(v.string()),
+    deliverables: v.optional(v.array(
+      v.object({
+        name: v.string(),
+        url: v.string(),
+      })
+    )),
   })
     .index("by_freelancer", ["freelancerId"])
     .index("by_client", ["clientId"])
-    .index("by_status", ["status"]),
+    .index("by_status", ["status"])
+    .index("by_clientEmail", ["clientEmail"]),
 
   tasks: defineTable({
     contractId: v.id("contracts"),
@@ -44,7 +62,6 @@ export default defineSchema({
       v.literal("running"),
       v.literal("completed")
     ),
-    hourlyRate: v.optional(v.number()),
     startedAt: v.optional(v.number()),
     completedAt: v.optional(v.number()),
     timeSpent: v.optional(v.number()),
@@ -76,6 +93,9 @@ export default defineSchema({
     notes: v.optional(v.string()),
     status: v.union(v.literal("draft"), v.literal("sent"), v.literal("paid")),
     paymentSimulated: v.boolean(),
+    deliverables: v.optional(v.array(
+      v.object({ name: v.string(), url: v.string() })
+    )),
   })
     .index("by_contract", ["contractId"]),
 
@@ -105,4 +125,12 @@ export default defineSchema({
     createdAt: v.number(),
   })
     .index("by_user", ["userId"]),
+
+  // Chat read status — tracks lastReadAt per user per contract
+  chatReadStatus: defineTable({
+    userId: v.id("users"),
+    contractId: v.id("contracts"),
+    lastReadAt: v.number(),
+  })
+    .index("by_user_contract", ["userId", "contractId"]),
 });

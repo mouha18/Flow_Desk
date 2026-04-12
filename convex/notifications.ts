@@ -1,12 +1,46 @@
-import { v } from "convex/values";
-import { mutation, query, internalMutation } from "./_generated/server";
-import { ConvexError } from "convex/values";
-import { getAuthUser } from "./lib/auth";
+import { query, mutation } from "./_generated/server";
+import { v, ConvexError } from "convex/values";
+import { getAuthUserId } from "@convex-dev/auth/server";
 
-/**
- * Internal mutation to create a notification
- */
-export const create = internalMutation({
+// List notifications for current user
+export const list = query({
+  args: {},
+  handler: async (ctx) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) return [];
+
+    const notifications = await ctx.db
+      .query("notifications")
+      .withIndex("by_user", (q) => q.eq("userId", userId))
+      .collect();
+
+    // Sort by creation time descending (newest first)
+    return notifications.sort((a, b) => {
+      const aTime = a._creationTime ?? 0;
+      const bTime = b._creationTime ?? 0;
+      return bTime - aTime;
+    });
+  },
+});
+
+// Get unread notification count for current user
+export const unreadCount = query({
+  args: {},
+  handler: async (ctx) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) return 0;
+
+    const unreadNotifications = await ctx.db
+      .query("notifications")
+      .withIndex("by_user_unread", (q) => q.eq("userId", userId).eq("read", false))
+      .collect();
+
+    return unreadNotifications.length;
+  },
+});
+
+// Create a notification (internal helper - called by other Convex functions)
+export const create = mutation({
   args: {
     userId: v.id("users"),
     type: v.string(),
@@ -14,70 +48,63 @@ export const create = internalMutation({
     message: v.string(),
   },
   handler: async (ctx, args) => {
-    await ctx.db.insert("notifications", {
+    const callerId = await getAuthUserId(ctx);
+    if (!callerId) throw new ConvexError("Not authenticated");
+
+    const notificationId = await ctx.db.insert("notifications", {
       userId: args.userId,
       type: args.type,
       contractId: args.contractId,
       message: args.message,
       read: false,
     });
+
+    return notificationId;
   },
 });
 
-/**
- * List all notifications for the authenticated user
- */
-export const listByUser = query({
-  args: {},
-  handler: async (ctx) => {
-    const userId = await getAuthUser(ctx);
-
-    return await ctx.db
-      .query("notifications")
-      .withIndex("by_user", (q) => q.eq("userId", userId))
-      .order("desc")
-      .take(100);
-  },
-});
-
-/**
- * Mark a notification as read
- */
+// Mark a single notification as read
 export const markRead = mutation({
   args: { notificationId: v.id("notifications") },
   handler: async (ctx, args) => {
-    const userId = await getAuthUser(ctx);
-    const notification = await ctx.db.get(args.notificationId);
+    const userId = await getAuthUserId(ctx);
+    if (!userId) throw new ConvexError("Not authenticated");
 
-    if (!notification || notification.userId !== userId) {
-      throw new ConvexError("UNAUTHORIZED");
+    const notification = await ctx.db.get("notifications", args.notificationId);
+    if (!notification) throw new ConvexError("Notification not found");
+
+    // Verify this notification belongs to the current user
+    if (notification.userId !== userId) {
+      throw new ConvexError("Notification not found");
     }
 
-    await ctx.db.patch(notification._id, { read: true });
+    await ctx.db.patch("notifications", args.notificationId, {
+      read: true,
+    });
 
-    return { success: true };
+    return null;
   },
 });
 
-/**
- * Mark all notifications as read
- */
+// Mark all user notifications as read
 export const markAllRead = mutation({
   args: {},
   handler: async (ctx) => {
-    const userId = await getAuthUser(ctx);
+    const userId = await getAuthUserId(ctx);
+    if (!userId) throw new ConvexError("Not authenticated");
 
-    const unreadNotifications = await ctx.db
+    const notifications = await ctx.db
       .query("notifications")
-      .withIndex("by_user_unread", (q) =>
-        q.eq("userId", userId).eq("read", false)
-      )
+      .withIndex("by_user_unread", (q) => q.eq("userId", userId).eq("read", false))
       .collect();
 
-    for (const notification of unreadNotifications) {
-      await ctx.db.patch(notification._id, { read: true });
+    // Mark all unread notifications as read
+    for (const notification of notifications) {
+      await ctx.db.patch("notifications", notification._id, {
+        read: true,
+      });
     }
 
-    return { count: unreadNotifications.length };
+    return null;
   },
 });

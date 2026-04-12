@@ -27,12 +27,67 @@ export const me = query({
   },
 });
 
+// Get user by ID (for looking up other users like freelancers)
+export const getUserById = query({
+  args: { userId: v.id("users") },
+  handler: async (ctx, args) => {
+    const user = await ctx.db.get("users", args.userId);
+    if (!user) return null;
+
+    // Get role from userRoles table
+    const userRole = await ctx.db
+      .query("userRoles")
+      .withIndex("by_user", (q) => q.eq("userId", args.userId))
+      .first();
+
+    return {
+      _id: user._id,
+      name: user.name,
+      email: user.email,
+      role: userRole?.role ?? null,
+    };
+  },
+});
+
+// Get user by email (for auto-filling client name in contract creation)
+export const getByEmail = query({
+  args: { email: v.string() },
+  handler: async (ctx, args) => {
+    const emailLower = args.email.toLowerCase();
+    
+    // Query all users and filter by email (authTables doesn't expose email index)
+    // In production, you'd want to add an email index to users table
+    const users = await ctx.db.query("users").collect();
+    const user = users.find((u) => u.email?.toLowerCase() === emailLower);
+    
+    if (!user) return null;
+
+
+    // Get role from userRoles table
+    const userRole = await ctx.db
+      .query("userRoles")
+      .withIndex("by_user", (q) => q.eq("userId", user._id))
+      .first();
+
+    return {
+      _id: user._id,
+      name: user.name,
+      email: user.email,
+      role: userRole?.role ?? null,
+    };
+  },
+});
+
 // Register push token for notifications
 export const registerPushToken = mutation({
   args: { pushToken: v.string() },
   handler: async (ctx, args) => {
     const userId = await getAuthUserId(ctx);
-    if (!userId) throw new Error("Not authenticated");
+    if (!userId) {
+      // Silently skip if not authenticated (can happen during login race condition)
+      console.log("registerPushToken: user not authenticated yet, skipping");
+      return null;
+    }
 
     // Upsert: remove existing entries with same token, then insert new one
     const existing = await ctx.db
@@ -53,28 +108,30 @@ export const registerPushToken = mutation({
   },
 });
 
+// Get push tokens for a user (used by push notification actions)
+export const getPushTokens = query({
+  args: { userId: v.id("users") },
+  handler: async (ctx, args) => {
+    return await ctx.db
+      .query("userPushTokens")
+      .withIndex("by_user", (q) => q.eq("userId", args.userId))
+      .collect();
+  },
+});
+
 // Update user profile
 export const updateProfile = mutation({
   args: {
     name: v.optional(v.string()),
-    pseudo: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const userId = await getAuthUserId(ctx);
     if (!userId) throw new Error("Not authenticated");
 
-    // Build update object with only provided fields
-    const updates: { name?: string; pseudo?: string } = {};
-    if (args.name !== undefined) updates.name = args.name;
-    if (args.pseudo !== undefined) updates.pseudo = args.pseudo;
-
-    if (Object.keys(updates).length === 0) {
-      throw new Error("No fields to update");
+    if (args.name !== undefined) {
+      await ctx.db.patch("users", userId, { name: args.name });
     }
-
-    await ctx.db.patch("users", userId, updates);
-
-    return { success: true };
+    return null;
   },
 });
 

@@ -1,10 +1,10 @@
 import * as Notifications from "expo-notifications";
 import * as Device from "expo-device";
 import Constants from "expo-constants";
-import { useEffect } from "react";
-import { Platform } from "react-native";
+import { useEffect, useRef } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "../convex/_generated/api";
+import { useAuth } from "./use-auth";
 
 // Configure notification behavior
 Notifications.setNotificationHandler({
@@ -18,19 +18,33 @@ Notifications.setNotificationHandler({
 });
 
 export function usePushNotifications() {
-  const registerToken = useMutation(api.users.registerPushToken);
   const user = useQuery(api.users.me);
+  const registerToken = useMutation(api.users.registerPushToken);
+  const { isAuthenticated, isLoading: authLoading } = useAuth();
+  const hasRegisteredRef = useRef(false);
 
   useEffect(() => {
     let notificationListener: Notifications.Subscription | null = null;
     let responseListener: Notifications.Subscription | null = null;
 
     async function registerForPushNotifications() {
-      // Don't register if not authenticated
-      if (!user) {
-        console.log("Push notifications: user not authenticated, skipping");
+      // Don't register if not authenticated or still loading auth
+      if (!isAuthenticated || authLoading) {
+        console.log("Push notifications: user not authenticated or still loading, skipping");
         return;
       }
+
+      // Also check user query is loaded
+      if (user === undefined) {
+        console.log("Push notifications: user query still loading, skipping");
+        return;
+      }
+
+      // Prevent double registration
+      if (hasRegisteredRef.current) {
+        return;
+      }
+      hasRegisteredRef.current = true;
 
       if (!Device.isDevice) {
         console.log("Push notifications require a physical device");
@@ -67,6 +81,8 @@ export function usePushNotifications() {
         console.log("Push token registered:", pushToken);
       } catch (error) {
         console.error("Failed to register push token:", error);
+        // Reset flag on error so we can retry
+        hasRegisteredRef.current = false;
       }
     }
 
@@ -94,5 +110,5 @@ export function usePushNotifications() {
         responseListener.remove();
       }
     };
-  }, [registerToken, user]);
+  }, [isAuthenticated, authLoading, user, registerToken]);
 }

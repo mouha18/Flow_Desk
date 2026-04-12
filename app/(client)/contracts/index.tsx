@@ -1,67 +1,49 @@
-import { View, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator } from "react-native";
+import { View, StyleSheet, FlatList } from "react-native";
 import { Stack, useRouter } from "expo-router";
-import { Heading, Typography, Screen, Card, Badge } from "@/components/ui";
+import { Heading, Typography, Screen, Card } from "@/components/ui";
+import { ContractCard } from "@/components/contracts/ContractCard";
+import { useContracts } from "@/hooks/useContracts";
+import { useTasks } from "@/hooks/useTasks";
 import { colors } from "@/constants/colors";
 import { spacing } from "@/constants/spacing";
-import { useClientContracts } from "@/hooks/use-contracts";
+import type { Contract } from "@/types";
 
 export default function ClientContractsScreen() {
   const router = useRouter();
-  const { contracts, isLoading } = useClientContracts();
+  const { contracts, isLoading } = useContracts();
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case "active": return colors.success;
-      case "pending": return colors.warning;
-      case "completed": return colors.primary;
-      case "declined": return colors.error;
-      default: return colors.gray500;
-    }
+  const handleContractPress = (contract: Contract) => {
+    router.push(`/(client)/contracts/${contract._id}`);
   };
 
-  const renderContract = ({ item }: { item: any }) => (
-    <TouchableOpacity 
-      onPress={() => router.push(`/contracts/${item._id}`)}
-      style={styles.contractCard}
-    >
-      <Card>
-        <View style={styles.contractHeader}>
-          <Heading level="h3" style={styles.contractTitle}>{item.title}</Heading>
-          <Badge 
-            label={item.status} 
-            color={getStatusColor(item.status)} 
-          />
-        </View>
-        <Typography variant="bodySmall" color={colors.gray600}>
-          Freelancer: {item.freelancerName}
-        </Typography>
-        <View style={styles.contractDetails}>
-          <Typography variant="bodySmall" color={colors.gray500}>
-            {item.pricingType === "fixed" ? `$${item.fixedPrice}` : "Hourly"}
-          </Typography>
-          <Typography variant="bodySmall" color={colors.gray500}>
-            {item.completionPercent}% complete
-          </Typography>
-        </View>
-      </Card>
-    </TouchableOpacity>
-  );
-
-  if (isLoading) {
+  // Helper to calculate completion for a contract
+  const ContractCardWithCompletion = ({ contract }: { contract: Contract }) => {
+    const { tasks } = useTasks(contract._id as any);
+    const taskList = (tasks ?? []) as any[];
+    const totalTasks = taskList.length;
+    const completedTasks = taskList.filter((t: any) => t.status === "completed").length;
+    const completionPercent = totalTasks > 0 ? (completedTasks / totalTasks) * 100 : 0;
+    
     return (
-      <>
-        <Stack.Screen
-          options={{
-            title: "Contracts",
-            headerLargeTitle: true,
-          }}
-        />
-        <Screen style={styles.container}>
-          <ActivityIndicator size="large" color={colors.primary} />
-        </Screen>
-      </>
+      <ContractCard
+        contract={contract}
+        onPress={handleContractPress}
+        style={styles.card}
+        completionPercent={completionPercent}
+        viewerRole="client"
+        freelancerName={contract.freelancerName || undefined}
+      />
     );
-  }
+  };
+
+  const renderEmptyState = () => (
+    <Card style={styles.emptyState}>
+      <Heading level="h3">No contracts yet</Heading>
+      <Typography variant="bodySmall" color={colors.gray500} style={styles.emptyText}>
+        You'll see your project contracts here
+      </Typography>
+    </Card>
+  );
 
   return (
     <>
@@ -71,21 +53,25 @@ export default function ClientContractsScreen() {
           headerLargeTitle: true,
         }}
       />
-      <Screen style={styles.container}>
-        {contracts && contracts.length > 0 ? (
-          <FlatList
-            data={contracts}
-            renderItem={renderContract}
-            keyExtractor={(item) => item._id}
-            contentContainerStyle={styles.list}
-          />
-        ) : (
-          <Card style={styles.emptyState}>
-            <Heading level="h3">No contracts yet</Heading>
-            <Typography variant="bodySmall" color={colors.gray500} style={styles.emptyText}>
-              You'll see your project contracts here
+      <Screen style={styles.container} scrollable={false}>
+        {isLoading ? (
+          <Card style={styles.loadingState}>
+            <Typography variant="bodySmall" color={colors.gray500}>
+              Loading contracts...
             </Typography>
           </Card>
+        ) : (contracts as Contract[]).length === 0 ? (
+          renderEmptyState()
+        ) : (
+          <FlatList
+            data={contracts as Contract[]}
+            keyExtractor={(item) => item._id}
+            renderItem={({ item }) => (
+              <ContractCardWithCompletion contract={item} />
+            )}
+            contentContainerStyle={styles.list}
+            showsVerticalScrollIndicator={false}
+          />
         )}
       </Screen>
     </>
@@ -99,25 +85,15 @@ const styles = StyleSheet.create({
   list: {
     padding: spacing[4],
   },
-  contractCard: {
-    marginBottom: spacing[4],
-  },
-  contractHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: spacing[2],
-  },
-  contractTitle: {
-    flex: 1,
-    marginRight: spacing[2],
-  },
-  contractDetails: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    marginTop: spacing[2],
+  card: {
+    marginBottom: spacing[3],
   },
   emptyState: {
+    alignItems: "center",
+    padding: spacing[8],
+    marginTop: spacing[4],
+  },
+  loadingState: {
     alignItems: "center",
     padding: spacing[8],
     marginTop: spacing[4],

@@ -1,256 +1,408 @@
-import { v } from "convex/values";
-import { mutation, query, internalMutation } from "./_generated/server";
+import { query, mutation } from "./_generated/server";
+import { v, ConvexError } from "convex/values";
+import { getAuthUserId } from "@convex-dev/auth/server";
 import { internal } from "./_generated/api";
-import { ConvexError } from "convex/values";
-import { getAuthUser, getUserRole, requireRole } from "./lib/auth";
 
-/**
- * Create a new contract (freelancer only)
- */
+// Type assertion for internal API access to modules with slashes in path names
+// This is needed because TypeScript doesn't naturally resolve "actions/ai" as a property
+type InternalApi = typeof internal;
+const internalAny = internal as any;
+
+// List all contracts for current user (filtered by role)
+export const list = query({
+  args: {},
+  handler: async (ctx) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) return [];
+
+    const userRole = await ctx.db
+      .query("userRoles")
+      .withIndex("by_user", (q) => q.eq("userId", userId))
+      .first();
+
+    if (!userRole) return [];
+
+    if (userRole.role === "freelancer") {
+      const contracts = await ctx.db
+        .query("contracts")
+        .withIndex("by_freelancer", (q) => q.eq("freelancerId", userId))
+        .collect();
+      return contracts;
+    } else {
+      const user = await ctx.db.get("users", userId);
+      const userEmail = user?.email?.toLowerCase();
+
+      const byClientId = await ctx.db
+        .query("contracts")
+        .withIndex("by_client", (q) => q.eq("clientId", userId))
+        .collect();
+
+      const byEmailCandidate = await ctx.db
+        .query("contracts")
+        .withIndex("by_clientEmail", (q) => q.eq("clientEmail", userEmail as string))
+        .collect();
+      const byEmail = byEmailCandidate.filter(
+        (c) => c.status === "pending"
+      );
+
+      const combined = [...byClientId, ...byEmail];
+      const seen = new Set();
+      const uniqueContracts = combined.filter((c) => {
+        if (seen.has(c._id)) return false;
+        seen.add(c._id);
+        return true;
+      });
+
+      // Add freelancerName to each contract
+      const freelancerIds = [...new Set(uniqueContracts.map(c => c.freelancerId))];
+      const freelancers = await Promise.all(
+        freelancerIds.map(id => ctx.db.get("users", id))
+      );
+      const freelancerMap = new Map(
+        freelancers.filter(Boolean).map(f => [f!._id, f!.name])
+      );
+
+      return uniqueContracts.map(c => ({
+        ...c,
+        freelancerName: freelancerMap.get(c.freelancerId) ?? c.freelancerId,
+      }));
+    }
+  },
+});
+
+// Get single contract by ID
+export const getById = query({
+  args: { contractId: v.id("contracts") },
+  handler: async (ctx, args) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) return null;
+
+    return await ctx.db.get("contracts", args.contractId);
+  },
+});
+
+// Freelancer creates a new contract (status: "pending")
 export const create = mutation({
   args: {
     clientEmail: v.string(),
-    clientName: v.string(),
-    clientPseudo: v.string(),
     title: v.string(),
     pricingType: v.union(v.literal("fixed"), v.literal("hourly")),
     fixedPrice: v.optional(v.number()),
+    hourlyRate: v.optional(v.number()),
     paymentTiming: v.union(v.literal("now"), v.literal("later")),
     paymentMethod: v.union(
       v.literal("stripe"),
       v.literal("naboo_orange"),
       v.literal("naboo_wave")
     ),
-    aiEmailTone: v.union(
-      v.literal("formal"),
-      v.literal("friendly"),
-      v.literal("casual")
-    ),
+    aiEmailTone: v.union(v.literal("formal"), v.literal("friendly"), v.literal("casual")),
   },
   handler: async (ctx, args) => {
-    const { userId } = await requireRole(ctx, "freelancer");
+    const userId = await getAuthUserId(ctx);
+    if (!userId) throw new ConvexError("Not authenticated");
 
-    // Validate fixed price is provided for fixed pricing
-    if (args.pricingType === "fixed" && !args.fixedPrice) {
-      throw new ConvexError("fixedPrice is required for fixed pricing type");
+    const userRole = await ctx.db
+      .query("userRoles")
+      .withIndex("by_user", (q) => q.eq("userId", userId))
+      .first();
+
+    if (!userRole || userRole.role !== "freelancer") {
+      throw new ConvexError("Only freelancers can create contracts");
     }
+
+    // Auto-fill client name from users table using clientEmail
+    const emailLower = args.clientEmail.toLowerCase();
+    const allUsers = await ctx.db.query("users").collect();
+    const clientUser = allUsers.find((u) => u.email?.toLowerCase() === emailLower);
+    const clientName = clientUser?.name ?? args.clientEmail;
 
     const contractId = await ctx.db.insert("contracts", {
       freelancerId: userId,
-      clientId: undefined, // Set when client registers
+      clientId: undefined,
       clientEmail: args.clientEmail,
-      clientName: args.clientName,
-      clientPseudo: args.clientPseudo,
+      clientName: clientName,
       title: args.title,
       status: "pending",
       pricingType: args.pricingType,
       fixedPrice: args.fixedPrice,
+      hourlyRate: args.hourlyRate,
       paymentTiming: args.paymentTiming,
       paymentMethod: args.paymentMethod,
       aiEmailTone: args.aiEmailTone,
       completionPercent: 0,
       deliverableLink: undefined,
+      deliverables: [],
     });
 
-    // TODO Sprint 3: Schedule AI email generation action
-    // await ctx.scheduler.runAfter(0, internal.actions.ai.generateOutreachEmail, {
-    //   contractId,
-    // });
+    // Get freelancer name for the email
+    const freelancer = await ctx.db.get("users", userId);
+    const freelancerName = freelancer?.name ?? "Your freelancer";
 
-    return { contractId, status: "pending" as const };
+    // Schedule AI outreach email
+    await ctx.scheduler.runAfter(0, internalAny.ai.generateOutreachEmail, {
+      clientEmail: args.clientEmail,
+      clientName: clientName,
+      freelancerName,
+      contractTitle: args.title,
+      tone: args.aiEmailTone,
+    });
+
+    return contractId;
   },
 });
 
-/**
- * List all contracts for the authenticated freelancer
- */
-export const listByFreelancer = query({
-  args: {},
-  handler: async (ctx) => {
-    const { userId } = await requireRole(ctx, "freelancer");
-
-    return await ctx.db
-      .query("contracts")
-      .withIndex("by_freelancer", (q) => q.eq("freelancerId", userId))
-      .order("desc")
-      .take(100);
-  },
-});
-
-/**
- * List all contracts for the authenticated client
- */
-export const listByClient = query({
-  args: {},
-  handler: async (ctx) => {
-    const { userId } = await requireRole(ctx, "client");
-
-    return await ctx.db
-      .query("contracts")
-      .withIndex("by_client", (q) => q.eq("clientId", userId))
-      .order("desc")
-      .take(100);
-  },
-});
-
-/**
- * Get a single contract by ID
- * Both freelancer and client can view if they're part of the contract
- */
-export const getById = query({
-  args: { contractId: v.id("contracts") },
-  handler: async (ctx, args) => {
-    const userId = await getAuthUser(ctx);
-    const contract = await ctx.db.get(args.contractId);
-
-    if (!contract) {
-      throw new ConvexError("Contract not found");
-    }
-
-    // Check access: must be freelancer or client of this contract
-    if (
-      contract.freelancerId !== userId &&
-      contract.clientId !== userId
-    ) {
-      throw new ConvexError("UNAUTHORIZED");
-    }
-
-    return contract;
-  },
-});
-
-/**
- * Client accepts a contract
- */
+// Client accepts a contract (status: "active", clientId = current user)
 export const accept = mutation({
   args: { contractId: v.id("contracts") },
   handler: async (ctx, args) => {
-    const { userId } = await requireRole(ctx, "client");
-    const contract = await ctx.db.get(args.contractId);
+    const userId = await getAuthUserId(ctx);
+    if (!userId) throw new ConvexError("Not authenticated");
 
-    if (!contract) {
-      throw new ConvexError("Contract not found");
+    const userRole = await ctx.db
+      .query("userRoles")
+      .withIndex("by_user", (q) => q.eq("userId", userId))
+      .first();
+
+    if (!userRole || userRole.role !== "client") {
+      throw new ConvexError("Only clients can accept contracts");
     }
 
-    // Verify this client is the intended recipient
-    if (contract.clientId !== userId) {
-      throw new ConvexError("UNAUTHORIZED");
-    }
-
+    const contract = await ctx.db.get("contracts", args.contractId);
+    if (!contract) throw new ConvexError("Contract not found");
     if (contract.status !== "pending") {
-      throw new ConvexError("Contract is not pending");
+      throw new ConvexError("Only pending contracts can be accepted");
     }
 
-    await ctx.db.patch(contract._id, { status: "active" });
-
-    // Create notification for freelancer
-    await ctx.runMutation(internal.notifications.create, {
-      userId: contract.freelancerId,
-      type: "contract_accepted",
-      contractId: contract._id,
-      message: `${contract.clientName} accepted your contract "${contract.title}"`,
+    await ctx.db.patch("contracts", args.contractId, {
+      status: "active",
+      clientId: userId,
     });
 
-    // TODO Sprint 3: Send email + push notification
-    // await ctx.scheduler.runAfter(0, internal.actions.email.onContractAccepted, {
-    //   contractId: contract._id,
-    // });
+    // Schedule contract accepted emails
+    await ctx.scheduler.runAfter(0, internalAny.email.sendContractAcceptedEmail, {
+      contractId: args.contractId,
+    });
 
-    return { status: "active" as const };
+    return null;
   },
 });
 
-/**
- * Client declines a contract
- */
+// Client declines a contract (status: "declined")
 export const decline = mutation({
   args: { contractId: v.id("contracts") },
   handler: async (ctx, args) => {
-    const { userId } = await requireRole(ctx, "client");
-    const contract = await ctx.db.get(args.contractId);
+    const userId = await getAuthUserId(ctx);
+    if (!userId) throw new ConvexError("Not authenticated");
 
-    if (!contract) {
-      throw new ConvexError("Contract not found");
+    const userRole = await ctx.db
+      .query("userRoles")
+      .withIndex("by_user", (q) => q.eq("userId", userId))
+      .first();
+
+    if (!userRole || userRole.role !== "client") {
+      throw new ConvexError("Only clients can decline contracts");
     }
 
-    if (contract.clientId !== userId) {
-      throw new ConvexError("UNAUTHORIZED");
-    }
-
+    const contract = await ctx.db.get("contracts", args.contractId);
+    if (!contract) throw new ConvexError("Contract not found");
     if (contract.status !== "pending") {
-      throw new ConvexError("Contract is not pending");
+      throw new ConvexError("Only pending contracts can be declined");
     }
 
-    await ctx.db.patch(contract._id, { status: "declined" });
-
-    // Create notification for freelancer
-    await ctx.runMutation(internal.notifications.create, {
-      userId: contract.freelancerId,
-      type: "contract_declined",
-      contractId: contract._id,
-      message: `${contract.clientName} declined your contract "${contract.title}"`,
+    await ctx.db.patch("contracts", args.contractId, {
+      status: "declined",
     });
 
-    return { status: "declined" as const };
+    return null;
   },
 });
 
-/**
- * Update deliverable link (freelancer only)
- */
-export const updateDeliverableLink = mutation({
+// Add a deliverable to a contract
+export const addDeliverable = mutation({
   args: {
     contractId: v.id("contracts"),
-    deliverableLink: v.string(),
+    name: v.string(),
+    url: v.string(),
   },
   handler: async (ctx, args) => {
-    const { userId } = await requireRole(ctx, "freelancer");
-    const contract = await ctx.db.get(args.contractId);
+    const userId = await getAuthUserId(ctx);
+    if (!userId) throw new ConvexError("Not authenticated");
 
-    if (!contract || contract.freelancerId !== userId) {
-      throw new ConvexError("UNAUTHORIZED");
+    const userRole = await ctx.db
+      .query("userRoles")
+      .withIndex("by_user", (q) => q.eq("userId", userId))
+      .first();
+
+    if (!userRole || userRole.role !== "freelancer") {
+      throw new ConvexError("Only freelancers can add deliverables");
     }
 
-    await ctx.db.patch(contract._id, {
-      deliverableLink: args.deliverableLink,
+    const contract = await ctx.db.get("contracts", args.contractId);
+    if (!contract) throw new ConvexError("Contract not found");
+    if (contract.freelancerId !== userId) {
+      throw new ConvexError("You can only add deliverables to your own contracts");
+    }
+
+    const currentDeliverables = contract.deliverables ?? [];
+    await ctx.db.patch("contracts", args.contractId, {
+      deliverables: [...currentDeliverables, { name: args.name, url: args.url }],
     });
 
-    return { success: true };
+    return null;
   },
 });
 
-/**
- * Internal mutation to recalculate completion percent based on tasks
- */
-export const updateCompletionPercent = internalMutation({
+// Remove a deliverable from a contract by index
+export const removeDeliverable = mutation({
+  args: {
+    contractId: v.id("contracts"),
+    index: v.number(),
+  },
+  handler: async (ctx, args) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) throw new ConvexError("Not authenticated");
+
+    const userRole = await ctx.db
+      .query("userRoles")
+      .withIndex("by_user", (q) => q.eq("userId", userId))
+      .first();
+
+    if (!userRole || userRole.role !== "freelancer") {
+      throw new ConvexError("Only freelancers can remove deliverables");
+    }
+
+    const contract = await ctx.db.get("contracts", args.contractId);
+    if (!contract) throw new ConvexError("Contract not found");
+    if (contract.freelancerId !== userId) {
+      throw new ConvexError("You can only remove deliverables from your own contracts");
+    }
+
+    const currentDeliverables = contract.deliverables ?? [];
+    if (args.index < 0 || args.index >= currentDeliverables.length) {
+      throw new ConvexError("Invalid deliverable index");
+    }
+
+    const newDeliverables = currentDeliverables.filter((_, i) => i !== args.index);
+    await ctx.db.patch("contracts", args.contractId, {
+      deliverables: newDeliverables,
+    });
+
+    return null;
+  },
+});
+
+// Freelancer submits completion with deliverables and triggers escrow delivery
+// Step 3: Freelancer Submit Completion Mutation
+export const submitCompletion = mutation({
+  args: {
+    contractId: v.id("contracts"),
+    deliverables: v.array(v.object({
+      name: v.string(),
+      url: v.string(),
+    })),
+    notes: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) throw new ConvexError("Not authenticated");
+
+    const contract = await ctx.db.get("contracts", args.contractId);
+    if (!contract) throw new ConvexError("Contract not found");
+    if (contract.freelancerId !== userId) {
+      throw new ConvexError("Not authorized");
+    }
+    if (contract.escrowStatus !== "held") {
+      throw new ConvexError("Contract is not in escrow");
+    }
+
+    // Update deliverables and escrow status
+    await ctx.db.patch(contract._id, {
+      deliverables: args.deliverables,
+      escrowStatus: "delivered",
+    });
+
+    // Notify client via push
+    await ctx.scheduler.runAfter(0, internalAny.actions.push.sendWorkDeliveredNotification, {
+      contractId: contract._id,
+    });
+
+    return null;
+  },
+});
+
+// Client approves delivery and releases escrow to freelancer
+// Step 4: Client Approval Mutation
+export const approveDelivery = mutation({
   args: { contractId: v.id("contracts") },
   handler: async (ctx, args) => {
-    const tasks = await ctx.db
-      .query("tasks")
-      .withIndex("by_contract", (q) => q.eq("contractId", args.contractId))
-      .collect();
+    const userId = await getAuthUserId(ctx);
+    if (!userId) throw new ConvexError("Not authenticated");
 
-    if (tasks.length === 0) {
-      await ctx.db.patch(args.contractId, { completionPercent: 0 });
-      return;
+    const contract = await ctx.db.get("contracts", args.contractId);
+    if (!contract) throw new ConvexError("Contract not found");
+    if (contract.clientId !== userId) {
+      throw new ConvexError("Not authorized");
+    }
+    if (contract.escrowStatus !== "delivered") {
+      throw new ConvexError("No delivery to approve");
     }
 
-    const completedCount = tasks.filter((t) => t.status === "completed").length;
-    const completionPercent = Math.round((completedCount / tasks.length) * 100);
+    // Release escrow - money to freelancer
+    await ctx.db.patch(contract._id, {
+      status: "finished",
+      escrowStatus: "released",
+      escrowReleasedAt: Date.now(),
+    });
 
-    await ctx.db.patch(args.contractId, { completionPercent });
+    // Notify freelancer
+    await ctx.scheduler.runAfter(0, internalAny.actions.push.sendPaymentReleasedNotification, {
+      contractId: contract._id,
+    });
 
-    // If 100% complete, notify client
-    if (completionPercent === 100) {
-      const contract = await ctx.db.get(args.contractId);
-      if (contract?.clientId) {
-        await ctx.runMutation(internal.notifications.create, {
-          userId: contract.clientId,
-          type: "task_complete",
-          contractId: contract._id,
-          message: `Project "${contract.title}" is 100% complete!`,
-        });
-      }
+    return null;
+  },
+});
+
+// Client disputes delivery and reopens contract for revision
+// Step 5: Client Dispute Mutation
+export const disputeDelivery = mutation({
+  args: {
+    contractId: v.id("contracts"),
+    complaint: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) throw new ConvexError("Not authenticated");
+
+    const contract = await ctx.db.get("contracts", args.contractId);
+    if (!contract) throw new ConvexError("Contract not found");
+    if (contract.clientId !== userId) {
+      throw new ConvexError("Not authorized");
     }
+    if (contract.escrowStatus !== "delivered") {
+      throw new ConvexError("No delivery to dispute");
+    }
+
+    // Reopen contract
+    await ctx.db.patch(contract._id, {
+      status: "active", // Reopen contract
+      escrowStatus: "held", // Money still held
+    });
+
+    // Send complaint to chat with template
+    const message = `Client not satisfied, here is his complain: ${args.complaint}`;
+    await ctx.db.insert("messages", {
+      contractId: contract._id,
+      senderId: userId,
+      content: message,
+    });
+
+    // Notify freelancer
+    await ctx.scheduler.runAfter(0, internalAny.actions.push.sendDisputeNotification, {
+      contractId: contract._id,
+      complaint: args.complaint,
+    });
+
+    return null;
   },
 });

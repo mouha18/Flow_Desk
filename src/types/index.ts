@@ -27,22 +27,30 @@ export type PaymentMethod = "stripe" | "naboo_orange" | "naboo_wave";
 export type PaymentTiming = "now" | "later";
 export type AiEmailTone = "formal" | "friendly" | "casual";
 
+export interface Deliverable {
+  name: string;
+  url: string;
+}
+
 export interface Contract {
   _id: string;
   freelancerId: string;
-  clientId: string | null;
+  clientId?: string;
   clientEmail: string;
-  clientName: string;
-  clientPseudo: string;
+  clientName?: string;
+  clientPseudo?: string;
   title: string;
   status: ContractStatus;
   pricingType: PricingType;
-  fixedPrice: number | null;
+  fixedPrice?: number;
+  hourlyRate?: number;
   paymentTiming: PaymentTiming;
   paymentMethod: PaymentMethod;
   aiEmailTone: AiEmailTone;
   completionPercent: number;
-  deliverableLink: string | null;
+  deliverableLink?: string;
+  deliverables?: Deliverable[];
+  freelancerName?: string;
   _creationTime: number;
 }
 
@@ -54,7 +62,6 @@ export interface Task {
   contractId: string;
   title: string;
   status: TaskStatus;
-  hourlyRate: number | null;
   startedAt: number | null;
   completedAt: number | null;
   timeSpent: number | null;

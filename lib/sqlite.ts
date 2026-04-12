@@ -1,4 +1,5 @@
 import { Platform } from "react-native";
+import type { Contract, Task, Message } from "../src/types";
 
 // Only import expo-sqlite on native platforms
 // On web, we'll use a mock implementation
@@ -56,6 +57,7 @@ export function getDb(): any {
 
 // Cache helpers
 export async function cacheContract(contract: { _id: string; [key: string]: unknown }): Promise<void> {
+  if (!db) return; // SQLite not initialized yet, skip caching
   const database = getDb();
   await database.runAsync(
     `INSERT OR REPLACE INTO cached_contracts (_id, data, updated_at) VALUES (?, ?, ?)`,
@@ -64,6 +66,7 @@ export async function cacheContract(contract: { _id: string; [key: string]: unkn
 }
 
 export async function getCachedContract(id: string): Promise<unknown | null> {
+  if (!db) return null; // SQLite not initialized yet, return null
   const database = getDb();
   const result = await database.getFirstAsync(
     `SELECT data FROM cached_contracts WHERE _id = ?`,
@@ -73,6 +76,7 @@ export async function getCachedContract(id: string): Promise<unknown | null> {
 }
 
 export async function cacheTask(task: { _id: string; contractId: string; [key: string]: unknown }): Promise<void> {
+  if (!db) return; // SQLite not initialized yet, skip caching
   const database = getDb();
   await database.runAsync(
     `INSERT OR REPLACE INTO cached_tasks (_id, contract_id, data, updated_at) VALUES (?, ?, ?, ?)`,
@@ -81,6 +85,7 @@ export async function cacheTask(task: { _id: string; contractId: string; [key: s
 }
 
 export async function getCachedTasksByContract(contractId: string): Promise<unknown[]> {
+  if (!db) return []; // SQLite not initialized yet, return empty
   const database = getDb();
   const results = await database.getAllAsync(
     `SELECT data FROM cached_tasks WHERE contract_id = ?`,
@@ -90,6 +95,7 @@ export async function getCachedTasksByContract(contractId: string): Promise<unkn
 }
 
 export async function cacheMessage(message: { _id: string; contractId: string; [key: string]: unknown }): Promise<void> {
+  if (!db) return; // SQLite not initialized yet, skip caching
   const database = getDb();
   await database.runAsync(
     `INSERT OR REPLACE INTO cached_messages (_id, contract_id, data, updated_at) VALUES (?, ?, ?, ?)`,
@@ -98,10 +104,112 @@ export async function cacheMessage(message: { _id: string; contractId: string; [
 }
 
 export async function getCachedMessagesByContract(contractId: string): Promise<unknown[]> {
+  if (!db) return []; // SQLite not initialized yet, return empty
   const database = getDb();
   const results = await database.getAllAsync(
     `SELECT data FROM cached_messages WHERE contract_id = ? ORDER BY updated_at ASC`,
     [contractId]
   ) as { data: string }[];
   return results.map((r) => JSON.parse(r.data));
+}
+
+// ============================================
+// Batch cache functions for offline support
+// ============================================
+
+// Contracts
+
+export async function cacheContracts(contracts: Contract[]): Promise<void> {
+  if (!db) return; // SQLite not initialized yet, skip caching
+  const database = getDb();
+  const now = Date.now();
+  for (const contract of contracts) {
+    await database.runAsync(
+      `INSERT OR REPLACE INTO cached_contracts (_id, data, updated_at) VALUES (?, ?, ?)`,
+      [contract._id, JSON.stringify(contract), now]
+    );
+  }
+}
+
+export async function getCachedContracts(): Promise<Contract[]> {
+  if (!db) return []; // SQLite not initialized yet, return empty
+  const database = getDb();
+  const results = await database.getAllAsync(
+    `SELECT data FROM cached_contracts ORDER BY updated_at DESC`
+  ) as { data: string }[];
+  return results.map((r) => JSON.parse(r.data) as Contract);
+}
+
+export async function clearContractsCache(): Promise<void> {
+  if (!db) return; // SQLite not initialized yet, skip
+  const database = getDb();
+  await database.runAsync(`DELETE FROM cached_contracts`);
+}
+
+// Tasks
+
+export async function cacheTasks(contractId: string, tasks: Task[]): Promise<void> {
+  if (!db) return; // SQLite not initialized yet, skip caching
+  const database = getDb();
+  const now = Date.now();
+  for (const task of tasks) {
+    await database.runAsync(
+      `INSERT OR REPLACE INTO cached_tasks (_id, contract_id, data, updated_at) VALUES (?, ?, ?, ?)`,
+      [task._id, contractId, JSON.stringify(task), now]
+    );
+  }
+}
+
+export async function getCachedTasks(contractId: string): Promise<Task[]> {
+  if (!db) return []; // SQLite not initialized yet, return empty
+  const database = getDb();
+  const results = await database.getAllAsync(
+    `SELECT data FROM cached_tasks WHERE contract_id = ? ORDER BY updated_at ASC`,
+    [contractId]
+  ) as { data: string }[];
+  return results.map((r) => JSON.parse(r.data) as Task);
+}
+
+export async function clearTasksCache(contractId?: string): Promise<void> {
+  if (!db) return; // SQLite not initialized yet, skip
+  const database = getDb();
+  if (contractId) {
+    await database.runAsync(`DELETE FROM cached_tasks WHERE contract_id = ?`, [contractId]);
+  } else {
+    await database.runAsync(`DELETE FROM cached_tasks`);
+  }
+}
+
+// Messages
+
+export async function cacheMessages(contractId: string, messages: Message[]): Promise<void> {
+  if (!db) return; // SQLite not initialized yet, skip caching
+  const database = getDb();
+  const now = Date.now();
+  for (const message of messages) {
+    await database.runAsync(
+      `INSERT OR REPLACE INTO cached_messages (_id, contract_id, data, updated_at) VALUES (?, ?, ?, ?)`,
+      [message._id, contractId, JSON.stringify(message), now]
+    );
+  }
+}
+
+export async function getCachedMessages(contractId: string): Promise<Message[]> {
+  if (!db) return []; // SQLite not initialized yet, return empty
+  const database = getDb();
+  const results = await database.getAllAsync(
+    `SELECT data FROM cached_messages WHERE contract_id = ? ORDER BY updated_at ASC`,
+    [contractId]
+  ) as { data: string }[];
+  return results.map((r) => JSON.parse(r.data) as Message);
+}
+
+export async function clearMessagesCache(contractId?: string): Promise<void> {
+  if (!db) return; // SQLite not initialized yet, skip
+  const database = getDb();
+  if (contractId) {
+    await database.runAsync(`DELETE FROM cached_messages WHERE contract_id = ?`, [contractId]);
+  } else {
+    await database.runAsync(`DELETE FROM cached_messages`);
+  }
 }

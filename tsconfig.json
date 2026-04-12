@@ -3,6 +3,7 @@
   "compilerOptions": {
     "strict": true,
     "baseUrl": ".",
+    "ignoreDeprecations": "6.0",
     "paths": {
       "@/*": ["src/*"],
       "@/components/*": ["src/components/*"],
@@ -11,8 +12,7 @@
       "@/lib/*": ["lib/*"],
       "@/types/*": ["src/types/*"],
       "@/convex/*": ["convex/*"]
-    },
-    "ignoreDeprecations": "6.0"
+    }
   },
   "include": [
     "**/*.ts",

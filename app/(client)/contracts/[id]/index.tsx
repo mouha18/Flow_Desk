@@ -1,166 +1,301 @@
-import { View, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Alert } from "react-native";
-import { Stack, useLocalSearchParams, useRouter } from "expo-router";
-import { Heading, Typography, Screen, Card, Badge, Button } from "@/components/ui";
+import { StyleSheet, View, ScrollView, Alert, Pressable, Text, Linking } from "react-native";
+import { Stack, useRouter, useLocalSearchParams } from "expo-router";
+import { useQuery, useMutation } from "convex/react";
+import { useState } from "react";
+import { api } from "@/convex/_generated/api";
+import { Typography, Screen, Card, Button, Input, Heading } from "@/components/ui";
+import { CompletionBar } from "@/components/tasks/CompletionBar";
+import { useContractById, useContracts } from "@/hooks/useContracts";
+import { useInvoice } from "@/hooks/useInvoice";
+import { useTasks } from "@/hooks/useTasks";
 import { colors } from "@/constants/colors";
 import { spacing } from "@/constants/spacing";
-import { useContract, useAcceptContract, useDeclineContract } from "@/hooks/use-contracts";
-import { useTasks } from "@/hooks/use-tasks";
-import { useState } from "react";
+import type { Id } from "@/convex/_generated/dataModel";
 
 export default function ClientContractDetailScreen() {
-  const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
-  const { contract, isLoading: contractLoading } = useContract(id || null);
-  const { tasks } = useTasks(id || null);
-  const { acceptContract } = useAcceptContract();
-  const { declineContract } = useDeclineContract();
-  const [isProcessing, setIsProcessing] = useState(false);
+  const { id } = useLocalSearchParams<{ id: string }>();
+  const contractId = id as Id<"contracts"> | undefined;
+  const { contract, isLoading } = useContractById(contractId);
+  const { acceptContract, declineContract } = useContracts();
+  const { tasks } = useTasks(contractId);
+  const { invoice } = useInvoice(contractId);
+  const [showDisputeForm, setShowDisputeForm] = useState(false);
+  const [complaint, setComplaint] = useState("");
+  const disputeDelivery = useMutation(api.contracts.disputeDelivery);
+  const approveDelivery = useMutation(api.contracts.approveDelivery);
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case "active": return colors.success;
-      case "pending": return colors.warning;
-      case "completed": return colors.primary;
-      case "declined": return colors.error;
-      default: return colors.gray500;
+  const handleApprove = async () => {
+    if (!contractId) return;
+    try {
+      await approveDelivery({ contractId });
+    } catch (error) {
+      Alert.alert("Error", "Failed to approve delivery");
     }
   };
 
+  // Fetch freelancer info using the freelancerId from contract
+  const freelancer = useQuery(
+    api.users.getUserById,
+    contract?.freelancerId ? { userId: contract.freelancerId as Id<"users"> } : "skip"
+  );
+
+  // Calculate completion percentage from tasks
+  const taskList = (tasks ?? []) as any[];
+  const totalTasks = taskList.length;
+  const completedTasks = taskList.filter((t: any) => t.status === "completed").length;
+  const completionPercent = totalTasks > 0 ? (completedTasks / totalTasks) * 100 : 0;
+
   const handleAccept = async () => {
-    if (!id) return;
-    setIsProcessing(true);
+    if (!contractId) return;
     try {
-      await acceptContract(id);
-      Alert.alert("Success", "Contract accepted!");
+      await acceptContract({ contractId });
+      
+      // Redirect to invoice page for payment
+      router.push(`/contracts/${contractId}/invoice`);
     } catch (error) {
       Alert.alert("Error", "Failed to accept contract");
-    } finally {
-      setIsProcessing(false);
     }
   };
 
   const handleDecline = async () => {
-    if (!id) return;
-    setIsProcessing(true);
+    if (!contractId) return;
+    Alert.alert(
+      "Decline Contract",
+      "Are you sure you want to decline this contract?",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Decline",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              await declineContract({ contractId });
+            } catch (error) {
+              Alert.alert("Error", "Failed to decline contract");
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  const handleDispute = async () => {
+    if (!contractId) return;
+    if (!complaint.trim()) {
+      Alert.alert("Error", "Please describe your issue");
+      return;
+    }
     try {
-      await declineContract(id);
-      Alert.alert("Success", "Contract declined");
+      await disputeDelivery({ contractId, complaint });
+      setShowDisputeForm(false);
+      setComplaint("");
     } catch (error) {
-      Alert.alert("Error", "Failed to decline contract");
-    } finally {
-      setIsProcessing(false);
+      Alert.alert("Error", "Failed to submit dispute");
     }
   };
 
-  if (contractLoading || !contract) {
+  const handleChatPress = () => {
+    if (contractId) {
+      router.push(`/(client)/chat/${contractId}`);
+    }
+  };
+
+  if (isLoading) {
     return (
       <>
-        <Stack.Screen options={{ title: "Contract Details" }} />
+        <Stack.Screen options={{ title: "Contract" }} />
         <Screen style={styles.container}>
-          <ActivityIndicator size="large" color={colors.primary} />
+          <Card style={styles.loadingCard}>
+            <Typography variant="bodySmall" color={colors.gray500}>
+              Loading contract...
+            </Typography>
+          </Card>
         </Screen>
       </>
     );
   }
 
-  const completedTasks = tasks?.filter(t => t.status === "completed").length || 0;
-  const totalTasks = tasks?.length || 0;
+  if (!contract) {
+    return (
+      <>
+        <Stack.Screen options={{ title: "Contract" }} />
+        <Screen style={styles.container}>
+          <Card style={styles.errorCard}>
+            <Typography variant="bodySmall" color={colors.error}>
+              Contract not found
+            </Typography>
+          </Card>
+        </Screen>
+      </>
+    );
+  }
 
   return (
     <>
-      <Stack.Screen 
-        options={{ 
+      <Stack.Screen
+        options={{
           title: contract.title,
-        }} 
+          headerLargeTitle: false,
+        }}
       />
       <Screen style={styles.container}>
-        <ScrollView>
-          <Card style={styles.card}>
-            <View style={styles.header}>
-              <Heading level="h2">{contract.title}</Heading>
-              <Badge label={contract.status} color={getStatusColor(contract.status)} />
-            </View>
-            
-            <Typography variant="body" color={colors.gray600} style={styles.description}>
-              {contract.description}
-            </Typography>
-
-            <View style={styles.details}>
-              <View style={styles.detailRow}>
-                <Typography variant="caption" color={colors.gray500}>Freelancer</Typography>
-                <Typography variant="body">{contract.freelancerName}</Typography>
-              </View>
-              
-              <View style={styles.detailRow}>
-                <Typography variant="caption" color={colors.gray500}>Pricing</Typography>
-                <Typography variant="body">
-                  {contract.pricingType === "fixed" 
-                    ? `$${contract.fixedPrice}` 
-                    : "Hourly rate"}
-                </Typography>
-              </View>
-
-              <View style={styles.detailRow}>
-                <Typography variant="caption" color={colors.gray500}>Payment</Typography>
-                <Typography variant="body">{contract.paymentMethod}</Typography>
-              </View>
-
-              <View style={styles.detailRow}>
-                <Typography variant="caption" color={colors.gray500}>Deadline</Typography>
-                <Typography variant="body">
-                  {new Date(contract.deadline).toLocaleDateString()}
-                </Typography>
-              </View>
+        <ScrollView showsVerticalScrollIndicator={false}>
+          <Card style={styles.statusCard}>
+            <View style={styles.statusRow}>
+              <Typography variant="label" color={colors.gray500}>
+                Status
+              </Typography>
+              <Typography
+                variant="body"
+                color={
+                  contract.status === "active"
+                    ? colors.success
+                    : contract.status === "pending"
+                    ? colors.warning
+                    : contract.status === "declined"
+                    ? colors.error
+                    : colors.gray500
+                }
+              >
+                {contract.status.charAt(0).toUpperCase() + contract.status.slice(1)}
+              </Typography>
             </View>
           </Card>
 
-          {contract.status === "active" && (
-            <Card style={styles.card}>
-              <Heading level="h3" style={styles.sectionTitle}>Progress</Heading>
-              <View style={styles.progressContainer}>
-                <View style={styles.progressBar}>
-                  <View 
-                    style={[
-                      styles.progressFill, 
-                      { width: `${contract.completionPercent}%` }
-                    ]} 
-                  />
-                </View>
-                <Typography variant="body" style={styles.progressText}>
-                  {contract.completionPercent}% Complete
-                </Typography>
-              </View>
-              <Typography variant="bodySmall" color={colors.gray500}>
-                {completedTasks} of {totalTasks} tasks completed
-              </Typography>
-            </Card>
-          )}
+          <Card style={styles.detailsCard}>
+            <Typography variant="label" color={colors.gray500}>
+              Freelancer
+            </Typography>
+            <Typography variant="body" style={styles.detailValue}>
+              {freelancer?.name || "Loading..."}
+            </Typography>
+
+            <Typography variant="label" color={colors.gray500} style={styles.detailLabel}>
+              Pricing
+            </Typography>
+            <Typography variant="body" style={styles.detailValue}>
+              {contract.pricingType === "fixed"
+                ? `Fixed Price: ${contract.fixedPrice?.toFixed(2) || "0.00"}`
+                : `Hourly Rate: ${contract.hourlyRate != null ? contract.hourlyRate.toFixed(2) : "0.00"}/hr`}
+            </Typography>
+
+            <Typography variant="label" color={colors.gray500} style={styles.detailLabel}>
+              Payment Method
+            </Typography>
+            <Typography variant="body" style={styles.detailValue}>
+              {contract.paymentMethod === "stripe"
+                ? "Stripe"
+                : contract.paymentMethod === "naboo_orange"
+                ? "Naboo Orange"
+                : "Naboo Wave"}
+            </Typography>
+          </Card>
+
+          <Card style={styles.progressCard}>
+            <Typography variant="label" color={colors.gray500}>
+              Progress
+            </Typography>
+            <CompletionBar percent={completionPercent} style={styles.completionBar} />
+          </Card>
 
           {contract.status === "pending" && (
             <View style={styles.actions}>
-              <Button 
-                label={isProcessing ? "Processing..." : "Accept Contract"} 
-                onPress={handleAccept}
-                variant="primary"
-                disabled={isProcessing}
-              />
-              <Button 
-                label="Decline" 
+              <Button
+                title="Decline"
+                variant="outline"
                 onPress={handleDecline}
-                variant="secondary"
-                disabled={isProcessing}
+                style={styles.actionButton}
+              />
+              <Button
+                title="Accept & Pay"
+                variant="primary"
+                onPress={handleAccept}
+                style={styles.actionButton}
               />
             </View>
           )}
 
           {contract.status === "active" && (
             <View style={styles.actions}>
-              <Button 
-                label="Open Chat" 
-                onPress={() => router.push(`/chat/${id}`)}
+              <Button
+                title="Open Chat"
                 variant="primary"
+                onPress={handleChatPress}
+                style={styles.fullButton}
               />
+              {invoice?.status === "sent" && (
+                <Button
+                  title="Pay Invoice"
+                  variant="primary"
+                  onPress={() => router.push(`/contracts/${contractId}/invoice`)}
+                  style={styles.fullButton}
+                />
+              )}
             </View>
+          )}
+
+          {contract.escrowStatus === "delivered" && (
+            <Card style={styles.deliveryCard}>
+              <Heading level="h3">Work Delivered! 🎉</Heading>
+              <Typography variant="body" color={colors.gray500}>
+                Your freelancer has submitted the work.
+              </Typography>
+
+              {contract.deliverables && contract.deliverables.length > 0 && (
+                <View style={styles.deliverablesSection}>
+                  <Typography variant="label" style={styles.deliverablesLabel}>
+                    Deliverables:
+                  </Typography>
+                  {contract.deliverables.map((d: any, i: number) => (
+                    <Pressable key={i} onPress={() => Linking.openURL(d.url)}>
+                      <Text style={styles.deliverableLink}>{d.name}</Text>
+                    </Pressable>
+                  ))}
+                </View>
+              )}
+
+              {!showDisputeForm ? (
+                <View style={styles.approvalButtons}>
+                  <Button
+                    title="Pas satisfait du service"
+                    variant="outline"
+                    onPress={() => setShowDisputeForm(true)}
+                    style={styles.halfButton}
+                  />
+                  <Button
+                    title="Satisfait du service"
+                    variant="primary"
+                    onPress={() => handleApprove()}
+                    style={styles.halfButton}
+                  />
+                </View>
+              ) : (
+                <View style={styles.disputeForm}>
+                  <Input
+                    label="Describe your issue"
+                    value={complaint}
+                    onChangeText={setComplaint}
+                    multiline
+                  />
+                  <View style={styles.disputeButtons}>
+                    <Button
+                      title="Cancel"
+                      variant="outline"
+                      onPress={() => {
+                        setShowDisputeForm(false);
+                        setComplaint("");
+                      }}
+                    />
+                    <Button
+                      title="Submit Complaint"
+                      variant="primary"
+                      onPress={handleDispute}
+                    />
+                  </View>
+                </View>
+              )}
+            </Card>
           )}
         </ScrollView>
       </Screen>
@@ -172,51 +307,84 @@ const styles = StyleSheet.create({
   container: {
     backgroundColor: colors.gray50,
   },
-  card: {
-    marginBottom: spacing[4],
-    padding: spacing[4],
+  loadingCard: {
+    alignItems: "center",
+    padding: spacing[8],
+    margin: spacing[4],
   },
-  header: {
+  errorCard: {
+    alignItems: "center",
+    padding: spacing[8],
+    margin: spacing[4],
+  },
+  statusCard: {
+    margin: spacing[4],
+    marginBottom: spacing[2],
+  },
+  statusRow: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: spacing[3],
   },
-  description: {
-    marginBottom: spacing[4],
-  },
-  details: {
-    marginTop: spacing[4],
-  },
-  detailRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    paddingVertical: spacing[2],
-    borderBottomWidth: 1,
-    borderBottomColor: colors.gray100,
-  },
-  sectionTitle: {
-    marginBottom: spacing[3],
-  },
-  progressContainer: {
-    marginBottom: spacing[3],
-  },
-  progressBar: {
-    height: 8,
-    backgroundColor: colors.gray200,
-    borderRadius: 4,
-    overflow: "hidden",
+  detailsCard: {
+    margin: spacing[4],
+    marginTop: spacing[2],
     marginBottom: spacing[2],
   },
-  progressFill: {
-    height: "100%",
-    backgroundColor: colors.primary,
-    borderRadius: 4,
+  detailLabel: {
+    marginTop: spacing[4],
   },
-  progressText: {
-    textAlign: "center",
+  detailValue: {
+    marginTop: spacing[1],
+  },
+  progressCard: {
+    margin: spacing[4],
+    marginTop: spacing[2],
+    marginBottom: spacing[2],
+  },
+  completionBar: {
+    marginTop: spacing[3],
   },
   actions: {
+    flexDirection: "row",
+    padding: spacing[4],
+    gap: spacing[3],
+  },
+  actionButton: {
+    flex: 1,
+  },
+  fullButton: {
+    flex: 1,
+  },
+  deliveryCard: {
+    margin: spacing[4],
+    padding: spacing[4],
+  },
+  deliverablesSection: {
+    marginTop: spacing[4],
+  },
+  deliverablesLabel: {
+    marginBottom: spacing[2],
+  },
+  deliverableLink: {
+    color: colors.primary,
+    textDecorationLine: "underline",
+    marginTop: spacing[1],
+  },
+  approvalButtons: {
+    flexDirection: "row",
+    marginTop: spacing[4],
+    gap: spacing[3],
+  },
+  halfButton: {
+    flex: 1,
+  },
+  disputeForm: {
+    marginTop: spacing[4],
+  },
+  disputeButtons: {
+    flexDirection: "row",
+    marginTop: spacing[3],
     gap: spacing[3],
   },
 });

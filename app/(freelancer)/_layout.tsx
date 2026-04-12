@@ -1,9 +1,19 @@
 import { Drawer } from "expo-router/drawer";
 import { useAuth } from "@/hooks/use-auth";
 import { Redirect } from "expo-router";
+import { useContracts } from "@/hooks/useContracts";
+import { useUnreadCountsByContract } from "@/hooks/useUnreadCounts";
+import { DrawerContent } from "@/components/drawer/DrawerContent";
+import { useQuery } from "convex/react";
+import { api } from "../../convex/_generated/api";
+import { useAuthActions } from "@convex-dev/auth/react";
 
 export default function FreelancerLayout() {
   const { isLoading, isAuthenticated, userRole, user } = useAuth();
+  const { contracts } = useContracts();
+  const unreadCounts = useUnreadCountsByContract();
+  const notificationUnreadCount = useQuery(api.notifications.unreadCount) ?? 0;
+  const { signOut } = useAuthActions();
 
   // Show loading while auth state is being determined
   if (isLoading || user === undefined) {
@@ -16,7 +26,9 @@ export default function FreelancerLayout() {
   }
 
   return (
-    <Drawer>
+    <Drawer
+      drawerContent={() => <DrawerContent contracts={contracts} userRole="freelancer" unreadCounts={unreadCounts} notificationUnreadCount={notificationUnreadCount} onSignOut={() => signOut()} />}
+    >
       <Drawer.Screen
         name="dashboard/index"
         options={{
@@ -27,8 +39,48 @@ export default function FreelancerLayout() {
       <Drawer.Screen
         name="contracts/index"
         options={{
-          title: "Contracts",
-          drawerLabel: "Contracts",
+          title: "All Contracts",
+          drawerLabel: "All Contracts",
+        }}
+      />
+      <Drawer.Screen
+        name="contracts/[id]/index"
+        options={{
+          title: "Contract Details",
+          drawerLabel: "Contract Details",
+          drawerItemStyle: { display: "none" },
+        }}
+      />
+      <Drawer.Screen
+        name="contracts/[id]/tasks"
+        options={{
+          title: "Tasks",
+          drawerLabel: "Tasks",
+          drawerItemStyle: { display: "none" },
+        }}
+      />
+      <Drawer.Screen
+        name="contracts/[id]/invoice"
+        options={{
+          title: "Invoice",
+          drawerLabel: "Invoice",
+          drawerItemStyle: { display: "none" },
+        }}
+      />
+      <Drawer.Screen
+        name="contracts/new"
+        options={{
+          title: "New Contract",
+          drawerLabel: "New Contract",
+          drawerItemStyle: { display: "none" },
+        }}
+      />
+      <Drawer.Screen
+        name="chat/[contractId]"
+        options={{
+          title: "Chat",
+          drawerLabel: "Chat",
+          drawerItemStyle: { display: "none" },
         }}
       />
       <Drawer.Screen

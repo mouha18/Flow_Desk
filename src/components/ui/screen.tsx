@@ -1,5 +1,5 @@
 import React from "react";
-import { ScrollView, ViewStyle, StyleSheet } from "react-native";
+import { ScrollView, View, ViewStyle, StyleSheet } from "react-native";
 import { colors } from "../../constants/colors";
 import { spacing } from "../../constants/spacing";
 
@@ -29,7 +29,7 @@ export function Screen({
     );
   }
 
-  return <>{children}</>;
+  return <View style={[styles.container, style]}>{children}</View>;
 }
 
 const styles = StyleSheet.create({

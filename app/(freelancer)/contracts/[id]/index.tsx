@@ -1,128 +1,182 @@
-import { View, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator } from "react-native";
-import { Stack, useLocalSearchParams, useRouter } from "expo-router";
-import { Heading, Typography, Screen, Card, Badge, Button } from "@/components/ui";
+import { StyleSheet, View, ScrollView, Pressable } from "react-native";
+import { Stack, useRouter, useLocalSearchParams } from "expo-router";
+import { useEffect } from "react";
+import { Typography, Screen, Card, Button } from "@/components/ui";
+import { CompletionBar } from "@/components/tasks/CompletionBar";
+import { useContractById } from "@/hooks/useContracts";
+import { useTasks } from "@/hooks/useTasks";
 import { colors } from "@/constants/colors";
 import { spacing } from "@/constants/spacing";
-import { useContract } from "@/hooks/use-contracts";
-import { useTasks } from "@/hooks/use-tasks";
+import type { Id } from "@/convex/_generated/dataModel";
 
 export default function FreelancerContractDetailScreen() {
-  const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
-  const { contract, isLoading: contractLoading } = useContract(id || null);
-  const { tasks } = useTasks(id || null);
+  const { id } = useLocalSearchParams<{ id: string }>();
+  const contractId = id as Id<"contracts"> | undefined;
+  const { contract, isLoading } = useContractById(contractId);
+  const { tasks } = useTasks(contractId);
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case "active": return colors.success;
-      case "pending": return colors.warning;
-      case "completed": return colors.primary;
-      case "declined": return colors.error;
-      default: return colors.gray500;
+  // Calculate completion percentage from tasks
+  const taskList = (tasks ?? []) as any[];
+  const totalTasks = taskList.length;
+  const completedTasks = taskList.filter((t: any) => t.status === "completed").length;
+  const completionPercent = totalTasks > 0 ? (completedTasks / totalTasks) * 100 : 0;
+
+  useEffect(() => {
+    if (contract) {
+      // Contract loaded
+    }
+  }, [contract]);
+
+  const handleTasksPress = () => {
+    if (contractId) {
+      router.push(`/(freelancer)/contracts/${contractId}/tasks`);
     }
   };
 
-  if (contractLoading || !contract) {
+  const handleChatPress = () => {
+    if (contractId) {
+      router.push(`/(freelancer)/chat/${contractId}`);
+    }
+  };
+
+  const handleInvoicePress = () => {
+    if (contractId) {
+      router.push(`/(freelancer)/contracts/${contractId}/invoice`);
+    }
+  };
+
+  // Show invoice button when contract is active and 100% complete
+  const showInvoiceButton = contract?.status === "active" && completionPercent === 100;
+
+  // Show complete & deliver button when escrow is held and all tasks are complete
+  const showCompleteButton = contract?.escrowStatus === "held" && completionPercent === 100;
+
+  if (isLoading) {
     return (
       <>
-        <Stack.Screen options={{ title: "Contract Details" }} />
+        <Stack.Screen options={{ title: "Contract" }} />
         <Screen style={styles.container}>
-          <ActivityIndicator size="large" color={colors.primary} />
+          <Card style={styles.loadingCard}>
+            <Typography variant="bodySmall" color={colors.gray500}>
+              Loading contract...
+            </Typography>
+          </Card>
         </Screen>
       </>
     );
   }
 
-  const completedTasks = tasks?.filter(t => t.status === "completed").length || 0;
-  const totalTasks = tasks?.length || 0;
+  if (!contract) {
+    return (
+      <>
+        <Stack.Screen options={{ title: "Contract" }} />
+        <Screen style={styles.container}>
+          <Card style={styles.errorCard}>
+            <Typography variant="bodySmall" color={colors.error}>
+              Contract not found
+            </Typography>
+          </Card>
+        </Screen>
+      </>
+    );
+  }
 
   return (
     <>
-      <Stack.Screen 
-        options={{ 
+      <Stack.Screen
+        options={{
           title: contract.title,
-          headerRight: () => (
-            <TouchableOpacity 
-              onPress={() => router.push(`/contracts/${id}/tasks`)}
-              style={styles.headerButton}
-            >
-              <Typography variant="body" color={colors.primary}>Tasks</Typography>
-            </TouchableOpacity>
-          ),
-        }} 
+          headerLargeTitle: false,
+        }}
       />
       <Screen style={styles.container}>
-        <ScrollView>
-          <Card style={styles.card}>
-            <View style={styles.header}>
-              <Heading level="h2">{contract.title}</Heading>
-              <Badge label={contract.status} color={getStatusColor(contract.status)} />
-            </View>
-            
-            <Typography variant="body" color={colors.gray600} style={styles.description}>
-              {contract.description}
-            </Typography>
-
-            <View style={styles.details}>
-              <View style={styles.detailRow}>
-                <Typography variant="caption" color={colors.gray500}>Client</Typography>
-                <Typography variant="body">{contract.clientName}</Typography>
-              </View>
-              
-              <View style={styles.detailRow}>
-                <Typography variant="caption" color={colors.gray500}>Pricing</Typography>
-                <Typography variant="body">
-                  {contract.pricingType === "fixed" 
-                    ? `$${contract.fixedPrice}` 
-                    : "Hourly rate"}
-                </Typography>
-              </View>
-
-              <View style={styles.detailRow}>
-                <Typography variant="caption" color={colors.gray500}>Payment</Typography>
-                <Typography variant="body">{contract.paymentMethod}</Typography>
-              </View>
-
-              <View style={styles.detailRow}>
-                <Typography variant="caption" color={colors.gray500}>Deadline</Typography>
-                <Typography variant="body">
-                  {new Date(contract.deadline).toLocaleDateString()}
-                </Typography>
-              </View>
+        <ScrollView showsVerticalScrollIndicator={false}>
+          <Card style={styles.statusCard}>
+            <View style={styles.statusRow}>
+              <Typography variant="label" color={colors.gray500}>
+                Status
+              </Typography>
+              <Typography
+                variant="body"
+                color={
+                  contract.status === "active"
+                    ? colors.success
+                    : contract.status === "pending"
+                    ? colors.warning
+                    : colors.gray500
+                }
+              >
+                {contract.status.charAt(0).toUpperCase() + contract.status.slice(1)}
+              </Typography>
             </View>
           </Card>
 
-          <Card style={styles.card}>
-            <Heading level="h3" style={styles.sectionTitle}>Progress</Heading>
-            <View style={styles.progressContainer}>
-              <View style={styles.progressBar}>
-                <View 
-                  style={[
-                    styles.progressFill, 
-                    { width: `${contract.completionPercent}%` }
-                  ]} 
-                />
-              </View>
-              <Typography variant="body" style={styles.progressText}>
-                {contract.completionPercent}% Complete
-              </Typography>
-            </View>
-            <Typography variant="bodySmall" color={colors.gray500}>
-              {completedTasks} of {totalTasks} tasks completed
+          <Card style={styles.detailsCard}>
+            <Typography variant="label" color={colors.gray500}>
+              Client
             </Typography>
+            <Typography variant="body" style={styles.detailValue}>
+              {contract.clientName || contract.clientPseudo || contract.clientEmail}
+            </Typography>
+
+            <Typography variant="label" color={colors.gray500} style={styles.detailLabel}>
+              Pricing
+            </Typography>
+            <Typography variant="body" style={styles.detailValue}>
+              {contract.pricingType === "fixed"
+                ? `Fixed Price: ${contract.fixedPrice?.toFixed(2) || "0.00"}`
+                : `Hourly Rate: ${contract.hourlyRate != null ? contract.hourlyRate.toFixed(2) : "0.00"}/hr`}
+            </Typography>
+
+            <Typography variant="label" color={colors.gray500} style={styles.detailLabel}>
+              Payment Method
+            </Typography>
+            <Typography variant="body" style={styles.detailValue}>
+              {contract.paymentMethod === "stripe"
+                ? "Stripe"
+                : contract.paymentMethod === "naboo_orange"
+                ? "Naboo Orange"
+                : "Naboo Wave"}
+            </Typography>
+          </Card>
+
+          <Card style={styles.progressCard}>
+            <Typography variant="label" color={colors.gray500}>
+              Progress
+            </Typography>
+            <CompletionBar percent={completionPercent} style={styles.completionBar} />
           </Card>
 
           <View style={styles.actions}>
-            <Button 
-              label="View Tasks" 
-              onPress={() => router.push(`/contracts/${id}/tasks`)}
-              variant="primary"
-            />
-            <Button 
-              label="Open Chat" 
-              onPress={() => router.push(`/chat/${id}`)}
+            <Button
+              title="View Tasks"
               variant="secondary"
+              onPress={handleTasksPress}
+              style={styles.actionButton}
             />
+            <Button
+              title="Open Chat"
+              variant="primary"
+              onPress={handleChatPress}
+              style={styles.actionButton}
+            />
+            {showInvoiceButton && (
+              <Button
+                title="Generate / View Invoice"
+                variant="primary"
+                onPress={handleInvoicePress}
+                style={styles.actionButton}
+              />
+            )}
+            {showCompleteButton && (
+              <Button
+                title="Complete & Deliver"
+                variant="primary"
+                onPress={() => router.push(`/(freelancer)/contracts/${contractId}/complete`)}
+                style={styles.fullButton}
+              />
+            )}
           </View>
         </ScrollView>
       </Screen>
@@ -134,54 +188,50 @@ const styles = StyleSheet.create({
   container: {
     backgroundColor: colors.gray50,
   },
-  card: {
-    marginBottom: spacing[4],
-    padding: spacing[4],
+  loadingCard: {
+    alignItems: "center",
+    padding: spacing[8],
+    margin: spacing[4],
   },
-  header: {
+  errorCard: {
+    alignItems: "center",
+    padding: spacing[8],
+    margin: spacing[4],
+  },
+  statusCard: {
+    margin: spacing[4],
+    marginBottom: spacing[2],
+  },
+  statusRow: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: spacing[3],
   },
-  description: {
-    marginBottom: spacing[4],
-  },
-  details: {
-    marginTop: spacing[4],
-  },
-  detailRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    paddingVertical: spacing[2],
-    borderBottomWidth: 1,
-    borderBottomColor: colors.gray100,
-  },
-  sectionTitle: {
-    marginBottom: spacing[3],
-  },
-  progressContainer: {
-    marginBottom: spacing[3],
-  },
-  progressBar: {
-    height: 8,
-    backgroundColor: colors.gray200,
-    borderRadius: 4,
-    overflow: "hidden",
+  detailsCard: {
+    margin: spacing[4],
+    marginTop: spacing[2],
     marginBottom: spacing[2],
   },
-  progressFill: {
-    height: "100%",
-    backgroundColor: colors.primary,
-    borderRadius: 4,
+  detailLabel: {
+    marginTop: spacing[4],
   },
-  progressText: {
-    textAlign: "center",
+  detailValue: {
+    marginTop: spacing[1],
+  },
+  progressCard: {
+    margin: spacing[4],
+    marginTop: spacing[2],
+    marginBottom: spacing[2],
+  },
+  completionBar: {
+    marginTop: spacing[3],
   },
   actions: {
+    flexDirection: "row",
+    padding: spacing[4],
     gap: spacing[3],
   },
-  headerButton: {
-    padding: spacing[2],
+  actionButton: {
+    flex: 1,
   },
 });

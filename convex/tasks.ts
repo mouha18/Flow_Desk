@@ -1,234 +1,262 @@
-import { v } from "convex/values";
-import { mutation, query } from "./_generated/server";
-import { internal } from "./_generated/api";
-import { ConvexError } from "convex/values";
-import { getAuthUser, requireRole } from "./lib/auth";
+import { query, mutation } from "./_generated/server";
+import { v, ConvexError } from "convex/values";
+import { getAuthUserId } from "@convex-dev/auth/server";
+import { internal, api } from "./_generated/api";
+
+// Type assertion for API access to modules with slashes in path names
+const internalAny = internal as any;
+const apiAny = api as any;
 
 /**
- * Create a new task (freelancer only)
+ * Helper function to send a notification to a user
  */
+async function sendNotification(
+  ctx: any,
+  userId: any,
+  type: string,
+  message: string,
+  contractId?: any
+) {
+  await ctx.db.insert("notifications", {
+    userId,
+    type,
+    message,
+    contractId,
+    read: false,
+  });
+}
+
+/**
+ * Format milliseconds to human-readable time string
+ */
+function formatTime(ms: number): string {
+  const seconds = Math.floor(ms / 1000);
+  const minutes = Math.floor(seconds / 60);
+  const hours = Math.floor(minutes / 60);
+
+  if (hours > 0) {
+    const remainingMinutes = minutes % 60;
+    return `${hours}h ${remainingMinutes}m`;
+  }
+  if (minutes > 0) {
+    return `${minutes}m`;
+  }
+  return `${seconds}s`;
+}
+
+// List tasks by contractId
+export const list = query({
+  args: { contractId: v.id("contracts") },
+  handler: async (ctx, args) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) return [];
+
+    return await ctx.db
+      .query("tasks")
+      .withIndex("by_contract", (q) => q.eq("contractId", args.contractId))
+      .collect();
+  },
+});
+
+// Create a new task
 export const create = mutation({
   args: {
     contractId: v.id("contracts"),
     title: v.string(),
-    hourlyRate: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
-    const { userId } = await requireRole(ctx, "freelancer");
+    const userId = await getAuthUserId(ctx);
+    if (!userId) throw new Error("Not authenticated");
 
-    const contract = await ctx.db.get(args.contractId);
-    if (!contract || contract.freelancerId !== userId) {
-      throw new ConvexError("UNAUTHORIZED");
+    // Verify contract exists and user is the freelancer
+    const contract = await ctx.db.get("contracts", args.contractId);
+    if (!contract) throw new Error("Contract not found");
+    if (contract.freelancerId !== userId) {
+      throw new ConvexError("Only the contract freelancer can add tasks");
     }
 
     const taskId = await ctx.db.insert("tasks", {
       contractId: args.contractId,
       title: args.title,
       status: "pending",
-      hourlyRate: args.hourlyRate,
       startedAt: undefined,
       completedAt: undefined,
       timeSpent: undefined,
     });
 
-    return { taskId };
+    return taskId;
   },
 });
 
-/**
- * List all tasks for a contract
- */
-export const listByContract = query({
-  args: { contractId: v.id("contracts") },
-  handler: async (ctx, args) => {
-    const userId = await getAuthUser(ctx);
-    const contract = await ctx.db.get(args.contractId);
-
-    if (!contract) {
-      throw new ConvexError("Contract not found");
-    }
-
-    // Check access
-    if (
-      contract.freelancerId !== userId &&
-      contract.clientId !== userId
-    ) {
-      throw new ConvexError("UNAUTHORIZED");
-    }
-
-    return await ctx.db
-      .query("tasks")
-      .withIndex("by_contract", (q) => q.eq("contractId", args.contractId))
-      .order("asc")
-      .collect();
-  },
-});
-
-/**
- * Update task status (freelancer only)
- */
+// Update task status (toggle pending/completed)
 export const updateStatus = mutation({
   args: {
     taskId: v.id("tasks"),
-    status: v.union(
-      v.literal("pending"),
-      v.literal("running"),
-      v.literal("completed")
-    ),
+    status: v.union(v.literal("pending"), v.literal("completed")),
   },
   handler: async (ctx, args) => {
-    const { userId } = await requireRole(ctx, "freelancer");
-    const task = await ctx.db.get(args.taskId);
+    const userId = await getAuthUserId(ctx);
+    if (!userId) throw new Error("Not authenticated");
 
-    if (!task) {
-      throw new ConvexError("Task not found");
+    const task = await ctx.db.get("tasks", args.taskId);
+    if (!task) throw new Error("Task not found");
+
+    const contract = await ctx.db.get("contracts", task.contractId);
+    if (!contract) throw new Error("Contract not found");
+
+    if (args.status === "completed" && !task.completedAt) {
+      await ctx.db.patch("tasks", args.taskId, {
+        status: "completed",
+        completedAt: Date.now(),
+      });
+
+      // Send notification to client
+      if (contract.clientId) {
+        let message = `Task completed: "${task.title}"`;
+        if (contract.hourlyRate && task.timeSpent) {
+          const amount = ((task.timeSpent / 1000 / 60 / 60) * contract.hourlyRate).toFixed(2);
+          message += ` (${amount} @ ${contract.hourlyRate}/h)`;
+        }
+        await sendNotification(ctx, contract.clientId, "task_completed", message, contract._id);
+      }
+    } else if (args.status === "pending" && task.completedAt) {
+      await ctx.db.patch("tasks", args.taskId, {
+        status: "pending",
+        completedAt: undefined,
+      });
     }
 
-    const contract = await ctx.db.get(task.contractId);
-    if (!contract || contract.freelancerId !== userId) {
-      throw new ConvexError("UNAUTHORIZED");
-    }
-
-    await ctx.db.patch(task._id, { status: args.status });
-
-    // Recalculate completion percent
-    await ctx.runMutation(internal.contracts.updateCompletionPercent, {
-      contractId: task.contractId,
-    });
-
-    return { success: true };
+    return null;
   },
 });
 
-/**
- * Start task timer (freelancer only)
- */
+// Start timer for a task
 export const startTimer = mutation({
   args: { taskId: v.id("tasks") },
   handler: async (ctx, args) => {
-    const { userId } = await requireRole(ctx, "freelancer");
-    const task = await ctx.db.get(args.taskId);
+    const userId = await getAuthUserId(ctx);
+    if (!userId) throw new Error("Not authenticated");
 
-    if (!task) {
-      throw new ConvexError("Task not found");
+    const task = await ctx.db.get("tasks", args.taskId);
+    if (!task) throw new Error("Task not found");
+
+    // If timer is already running, treat it as potentially stale (app may have closed while running)
+    // Auto-recover by accumulating elapsed time and restarting fresh
+    if (task.startedAt) {
+      const now = Date.now();
+      const runningFor = now - task.startedAt;
+      
+      // Accumulate any elapsed time and restart the timer
+      const totalTimeSpent = (task.timeSpent || 0) + runningFor;
+      await ctx.db.patch("tasks", args.taskId, {
+        status: "running",
+        startedAt: now, // Restart from now
+        timeSpent: totalTimeSpent,
+      });
+    } else {
+      // Normal start - no timer running
+      await ctx.db.patch("tasks", args.taskId, {
+        status: "running",
+        startedAt: Date.now(),
+      });
     }
 
-    const contract = await ctx.db.get(task.contractId);
-    if (!contract || contract.freelancerId !== userId) {
-      throw new ConvexError("UNAUTHORIZED");
-    }
-
-    if (task.status === "completed") {
-      throw new ConvexError("Cannot start timer on completed task");
-    }
-
-    const now = Date.now();
-    await ctx.db.patch(task._id, {
-      startedAt: now,
-      status: "running",
-    });
-
-    return { startedAt: now };
+    return null;
   },
 });
 
-/**
- * Stop task timer and calculate timeSpent (freelancer only)
- */
+// Stop timer for a task
 export const stopTimer = mutation({
   args: { taskId: v.id("tasks") },
   handler: async (ctx, args) => {
-    const { userId } = await requireRole(ctx, "freelancer");
-    const task = await ctx.db.get(args.taskId);
+    const userId = await getAuthUserId(ctx);
+    if (!userId) throw new Error("Not authenticated");
 
-    if (!task) {
-      throw new ConvexError("Task not found");
-    }
-
-    const contract = await ctx.db.get(task.contractId);
-    if (!contract || contract.freelancerId !== userId) {
-      throw new ConvexError("UNAUTHORIZED");
-    }
+    const task = await ctx.db.get("tasks", args.taskId);
+    if (!task) throw new Error("Task not found");
 
     if (!task.startedAt) {
-      throw new ConvexError("Timer not started");
+      throw new ConvexError("Timer not running");
     }
 
     const now = Date.now();
-    const timeSpentMs = now - task.startedAt;
-    const timeSpentMinutes = Math.round(timeSpentMs / 60000);
+    const elapsed = now - task.startedAt;
+    const totalTimeSpent = (task.timeSpent || 0) + elapsed;
 
-    await ctx.db.patch(task._id, {
-      completedAt: now,
-      timeSpent: timeSpentMinutes,
+    await ctx.db.patch("tasks", args.taskId, {
       status: "completed",
+      startedAt: undefined,
+      timeSpent: totalTimeSpent,
     });
 
-    // Recalculate completion percent
-    await ctx.runMutation(internal.contracts.updateCompletionPercent, {
-      contractId: task.contractId,
-    });
+    // Update contract completion percentage
+    const contract = await ctx.db.get("contracts", task.contractId);
+    if (contract) {
+      const allTasks = await ctx.db
+        .query("tasks")
+        .withIndex("by_contract", (q) => q.eq("contractId", task.contractId))
+        .collect();
+      const completedCount = allTasks.filter((t) => t.status === "completed").length;
+      const totalCount = allTasks.length;
+      const completionPercent = Math.round((completedCount / totalCount) * 100);
 
-    return { completedAt: now, timeSpent: timeSpentMinutes };
+      await ctx.db.patch("contracts", task.contractId, { completionPercent });
+
+      // Send notification to client about time tracked
+      if (contract.clientId) {
+        let message = `Time tracked on "${task.title}": ${formatTime(elapsed)}`;
+        if (contract.hourlyRate) {
+          const amount = ((elapsed / 1000 / 60 / 60) * contract.hourlyRate).toFixed(2);
+          message += ` (${amount} @ ${contract.hourlyRate}/h)`;
+        }
+
+        await sendNotification(ctx, contract.clientId, "time_tracked", message, contract._id);
+      }
+
+      // Check if all tasks completed (100%)
+      if (completedCount === totalCount && totalCount > 0) {
+        // All tasks done - update contract completion
+        await ctx.db.patch("contracts", task.contractId, { completionPercent: 100 });
+        
+        // Schedule push notification to client via scheduler (not ctx.runAction in mutation)
+        if (contract.clientId) {
+          await ctx.scheduler.runAfter(0, internalAny.actions.push.sendTaskCompleteNotification, {
+            userId: contract.clientId,
+            title: "Work Complete! 🎉",
+            body: `All tasks for "${contract.title}" are done! Ready to generate invoice.`,
+            data: { contractId: contract._id },
+          });
+        }
+      }
+    }
+
+    return null;
   },
 });
 
-/**
- * Set hourly rate on a task (freelancer only, hourly contracts)
- */
+// Set hourly rate for a task - DEPRECATED, rates are now per-contract
 export const setHourlyRate = mutation({
   args: {
     taskId: v.id("tasks"),
     hourlyRate: v.number(),
   },
   handler: async (ctx, args) => {
-    const { userId } = await requireRole(ctx, "freelancer");
-    const task = await ctx.db.get(args.taskId);
+    const userId = await getAuthUserId(ctx);
+    if (!userId) throw new ConvexError("Not authenticated");
 
-    if (!task) {
-      throw new ConvexError("Task not found");
+    const task = await ctx.db.get("tasks", args.taskId);
+    if (!task) throw new ConvexError("Task not found");
+
+    // Verify user is the freelancer for this contract
+    const contract = await ctx.db.get("contracts", task.contractId);
+    if (!contract) throw new ConvexError("Contract not found");
+    if (contract.freelancerId !== userId) {
+      throw new ConvexError("Only the contract freelancer can set hourly rates");
     }
 
-    const contract = await ctx.db.get(task.contractId);
-    if (!contract || contract.freelancerId !== userId) {
-      throw new ConvexError("UNAUTHORIZED");
-    }
 
-    if (contract.pricingType !== "hourly") {
-      throw new ConvexError("Cannot set hourly rate on fixed-price contract");
-    }
-
-    await ctx.db.patch(task._id, { hourlyRate: args.hourlyRate });
-
-    return { success: true };
-  },
-});
-
-/**
- * Delete a task (freelancer only)
- */
-export const deleteTask = mutation({
-  args: { taskId: v.id("tasks") },
-  handler: async (ctx, args) => {
-    const { userId } = await requireRole(ctx, "freelancer");
-    const task = await ctx.db.get(args.taskId);
-
-    if (!task) {
-      throw new ConvexError("Task not found");
-    }
-
-    const contract = await ctx.db.get(task.contractId);
-    if (!contract || contract.freelancerId !== userId) {
-      throw new ConvexError("UNAUTHORIZED");
-    }
-
-    await ctx.db.delete(task._id);
-
-    // Recalculate completion percent
-    await ctx.runMutation(internal.contracts.updateCompletionPercent, {
-      contractId: task.contractId,
-    });
-
-    return { success: true };
+    // This is now deprecated - rates are set at the contract level
+    // Keeping for backwards compatibility but it doesn't actually update anything
+    return null;
   },
 });
