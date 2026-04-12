@@ -23,162 +23,36 @@ When working on Convex code, **always read `convex/_generated/ai/guidelines.md` 
 | Layer | Technology | Version |
 |---|---|---|
 | Framework | Expo (managed) | SDK 54 |
-| Runtime | React Native | 0.81.x |
+| Runtime | React Native | 0.81.5 |
 | Language | TypeScript | 5.x |
-| Routing | Expo Router | ~4.0.0 |
+| Routing | Expo Router | ~6.0.23 |
 | Backend | Convex | ^1.17.0 |
 | Auth | @convex-dev/auth | ^0.0.71 |
-| Secure Storage | expo-secure-store | bundled |
-| Push Notifications | expo-notifications | bundled |
-| Local Database | expo-sqlite | ~15.1.4 |
-| Preferences | @react-native-async-storage/async-storage | bundled |
+| Secure Storage | expo-secure-store | ~15.0.8 |
+| Haptics | expo-haptics | ~15.0.8 |
+| WebView | react-native-webview | ^13.15.0 |
+| Push Notifications | expo-notifications | ~0.32.16 |
+| Local Database | expo-sqlite | ~16.0.10 |
+| Preferences | @react-native-async-storage/async-storage | 2.2.0 |
 
 ---
 
-## Critical Rules
+## Quick Reference
 
-### 1. NEVER Use Tailwind / NativeWind / react-native-css
-These packages cause Metro transformer crashes on this Expo SDK version. Use only React Native `StyleSheet.create()` for all styling. All UI components are in `src/components/ui/`.
+### Critical Rules
 
-### 2. NEVER Call Navigation Methods During Render
-`router.replace()` or `router.push()` called directly in component render body causes "Cannot update a component while rendering" errors. Always wrap navigation in `useEffect`.
+| Rule | Description |
+|------|-------------|
+| **No Tailwind/NativeWind** | Use only `StyleSheet.create()` — causes Metro crashes |
+| **No navigation during render** | Wrap `router.replace()`/`router.push()` in `useEffect` |
+| **Auth session is authoritative** | Use `getAuthUserId(ctx)` in Convex, `useAuth()` on frontend |
+| **Role in Convex, not AsyncStorage** | Read from `userRoles` table via `me` query |
+| **Schema changes require `npx convex dev`** | Push schema updates to Convex |
+| **Password flow requires `flow` param** | `flow: "signIn"` or `flow: "signUp"` |
 
-**BAD:**
+### Auth Pattern (Quick)
+
 ```typescript
-// ❌ WRONG — causes setState during render error
-if (isAuthenticated) {
-  router.replace("/(freelancer)/dashboard");
-}
-```
-
-**GOOD:**
-```typescript
-// ✅ CORRECT — use useEffect
-useEffect(() => {
-  if (isAuthenticated) {
-    router.replace("/(freelancer)/dashboard");
-  }
-}, [isAuthenticated]);
-```
-
-### 3. Convex Auth Session Is Authoritative for User Identity
-- Use `getAuthUserId(ctx)` from `@convex-dev/auth/server` in Convex functions — NOT `ctx.auth.getUserIdentity()`
-- Use `useAuth()` hook (from `hooks/use-auth.ts`) on the frontend to get `isAuthenticated`, `user`, and `userRole`
-- The `useAuth()` hook returns `user.role` from the `userRoles` table in Convex, NOT from AsyncStorage alone
-
-### 4. Role Is Stored in Convex `userRoles` Table, Not Just AsyncStorage
-- `userRoles` table: `{ userId, role: "freelancer" | "client", createdAt }`
-- Role is set once during registration via `setUserRole` mutation
-- Subsequent logins read role from Convex via the `me` query
-- AsyncStorage is still used as a cache for quick local access
-
-### 5. Schema Changes Require `npx convex dev`
-After modifying `convex/schema.ts`, you MUST run `npx convex dev` to push the updated schema to Convex. The app will have mismatched types until this is done.
-
-### 6. Password Provider Requires `flow` Parameter
-When calling `signIn("password", {...})` from `@convex-dev/auth/react`, you MUST include:
-- `flow: "signIn"` for login
-- `flow: "signUp"` for registration
-
-Missing `flow` causes the Password provider to fail silently.
-
----
-
-## Code Structure
-
-```
-app/                          # Expo Router screens
-  _layout.tsx                 # Root layout — ConvexAuthProvider wraps everything
-  index.tsx                   # Entry point — redirects based on auth + role
-  (auth)/                     # Auth flow (Stack)
-    _layout.tsx
-    login.tsx                 # Login screen
-    register.tsx               # Registration screen
-    role-select.tsx            # Role picker (freelancer/client)
-  (freelancer)/               # Freelancer flow (Drawer)
-    _layout.tsx                # Auth guard: redirects if not freelancer
-    dashboard/index.tsx
-    contracts/index.tsx
-    notifications/index.tsx
-    profile/index.tsx
-  (client)/                   # Client flow (Drawer)
-    _layout.tsx                # Auth guard: redirects if not client
-    dashboard/index.tsx
-    contracts/index.tsx
-    notifications/index.tsx
-    profile/index.tsx
-
-convex/                       # Convex backend
-  auth.ts                     # Convex Auth config (convexAuth + Password provider)
-  auth.config.ts               # Auth configuration
-  schema.ts                    # Database schema
-  users.ts                     # User queries/mutations (me, registerPushToken, setUserRole, updateProfile)
-  http.ts                     # HTTP actions (future)
-
-hooks/                        # Custom React hooks
-  use-auth.ts                  # Auth state: isAuthenticated, user, userRole
-  use-push-notifications.ts    # Push notification setup
-
-lib/
-  storage.ts                   # AsyncStorage helpers (role, lastContractId)
-  sqlite.ts                   # SQLite init (platform-aware: native vs web)
-
-src/
-  components/ui/              # Design system components
-    button.tsx, card.tsx, badge.tsx, input.tsx, screen.tsx, typography.tsx
-  constants/
-    colors.ts                  # Color palette (includes role colors: freelancer, client)
-    typography.ts              # Font sizes
-    spacing.ts                 # Spacing scale
-  types/
-    index.ts                   # TypeScript types (AuthUser, Contract, Task, Message, Invoice, etc.)
-```
-
----
-
-## Convex Auth Pattern
-
-### Backend Setup
-```typescript
-// convex/auth.ts
-import { convexAuth } from "@convex-dev/auth/server";
-import { Password } from "@convex-dev/auth/providers/Password";
-export const { auth, signIn, signOut, store } = convexAuth({ providers: [Password()] });
-
-// convex/schema.ts
-import { authTables } from "@convex-dev/auth/server";
-export default defineSchema({
-  ...authTables,
-  // custom tables...
-});
-```
-
-### Frontend Provider
-```typescript
-// app/_layout.tsx
-import { ConvexAuthProvider } from "@convex-dev/auth/react";
-import * as SecureStore from "expo-secure-store";
-
-const secureStorage = {
-  getItem: (key) => SecureStore.getItemAsync(key),
-  setItem: (key, value) => SecureStore.setItemAsync(key, value),
-  removeItem: (key) => SecureStore.deleteItemAsync(key),
-};
-
-export default function RootLayout() {
-  return (
-    <ConvexAuthProvider client={convex} storage={secureStorage}>
-      <RootLayoutNav />
-    </ConvexAuthProvider>
-  );
-}
-```
-
-### Auth Actions (Frontend)
-```typescript
-import { useAuthActions } from "@convex-dev/auth/react";
-const { signIn, signOut } = useAuthActions();
-
 // Login
 await signIn("password", { email, password, flow: "signIn" });
 
@@ -189,65 +63,159 @@ await signIn("password", { email, password, name, flow: "signUp" });
 await signOut();
 ```
 
+### Error Fixes
+
+| Error | Fix |
+|-------|-----|
+| "Object contains extra field" | Add field to `convex/schema.ts`, run `npx convex dev` |
+| "Cannot update a component while rendering" | Wrap navigation in `useEffect` |
+| Metro crash | Remove Tailwind/NativeWind, use `StyleSheet` |
+| Auth session not updating | Watch `isAuthenticated` with `useEffect`, navigate inside |
+| Layout guard false redirect | Check `if (isLoading \|\| user === undefined) return null;` |
+| Password silently fails | Always include `flow` parameter |
+
 ---
 
-## Frequent Errors and Fixes
+<!-- additional-start -->
 
-### Error: "Failed to insert or update a document... Object contains extra field"
-**Cause:** Trying to insert a field into a Convex table that doesn't have it in the validator.
-**Fix:** Add the field to the schema in `convex/schema.ts`, then run `npx convex dev`.
+## Backend (Convex)
 
-### Error: "Cannot update a component while rendering a different component"
-**Cause:** Calling `router.replace()` or `setState` directly in the render body.
-**Fix:** Wrap navigation in `useEffect`. Use `useRef` to prevent re-triggering.
+### Documentation
+- **Convex AI Guidelines:** `convex/_generated/ai/guidelines.md` (read first for Convex code)
+- **Schema (source of truth):** [`convex/schema.ts`](convex/schema.ts)
+- **API Design:** `docs/API_CONTRACT.md`
+- **Architecture:** `docs/ARCHITECTURE.md`
 
-### Error: Metro crash / transformer error
-**Cause:** Usually `react-native-css` or incompatible Tailwind packages.
-**Fix:** Remove all Tailwind/NativeWind packages. Use plain `StyleSheet.create()`.
+### Convex Auth Setup
 
-### Error: Auth session not updating after login
-**Cause:** Login screen not reacting to `isAuthenticated` change.
-**Fix:** Watch `isAuthenticated` and `user` from `useAuth()` with `useEffect`, navigate inside the effect.
+**Files:** [`convex/auth.ts`](convex/auth.ts) | [`convex/auth.config.ts`](convex/auth.config.ts)
 
-### Error: User stays on login screen after successful signIn
-**Cause:** No redirect after successful signIn — the login screen just called signIn but didn't navigate.
-**Fix:** Use `useEffect` to watch `isAuthenticated` and redirect when it becomes `true`.
+```typescript
+// convex/auth.ts
+import { convexAuth } from "@convex-dev/auth/server";
+import { Password } from "@convex-dev/auth/providers/Password";
+export const { auth, signIn, signOut, store } = convexAuth({ providers: [Password()] });
+```
 
-### Error: Layout guard redirects even when user is authenticated
-**Cause:** `userRole` is `null` because it was read from AsyncStorage before it was synced, or layout checks role before `useAuth` finishes loading.
-**Fix:** Layout guards should check `if (isLoading || user === undefined) return null;` before checking role.
+### User Queries/Mutations
 
-### Error: Password provider silently fails
-**Cause:** Missing `flow: "signIn"` or `flow: "signUp"` parameter.
-**Fix:** Always include the `flow` parameter.
+**File:** [`convex/users.ts`](convex/users.ts)
+
+Key functions:
+- `me` — get current user with role
+- `setUserRole` — set freelancer/client role
+- `updateProfile` — update user profile
+
+### Schema Tables
+
+```typescript
+// From authTables: users (do NOT add fields directly)
+// Custom tables:
+userRoles         // { userId, role: "freelancer" | "client", createdAt }
+userPushTokens    // { userId, token, platform }
+contracts         // { freelancerId, clientId, title, description, budget, status, ... }
+tasks             // { contractId, title, description, status, dueDate, ... }
+messages          // { contractId, senderId, content, ... }
+invoices          // { contractId, freelancerId, clientId, amount, status, ... }
+notifications     // { userId, type, title, body, read, ... }
+```
+
+---
+
+## Frontend
+
+### Routing Structure
+
+```
+app/
+├── _layout.tsx              # Root: ConvexAuthProvider wraps everything
+├── index.tsx               # Entry: redirects based on auth + role
+├── (auth)/                 # Auth flow (Stack)
+│   ├── _layout.tsx
+│   ├── login.tsx
+│   ├── register.tsx
+│   └── role-select.tsx
+├── (freelancer)/           # Freelancer flow (Drawer)
+│   ├── _layout.tsx          # Auth guard
+│   ├── dashboard/index.tsx
+│   ├── contracts/
+│   │   ├── index.tsx
+│   │   ├── new.tsx
+│   │   └── [id]/
+│   │       ├── index.tsx
+│   │       ├── tasks.tsx
+│   │       ├── complete.tsx
+│   │       └── invoice.tsx
+│   ├── chat/[contractId].tsx
+│   ├── notifications/
+│   └── profile/index.tsx
+└── (client)/               # Client flow (Drawer)
+    ├── _layout.tsx          # Auth guard
+    ├── dashboard/index.tsx
+    ├── contracts/
+    │   ├── index.tsx
+    │   └── [id]/
+    │       ├── index.tsx
+    │       └── invoice.tsx
+    ├── chat/[contractId].tsx
+    ├── notifications/
+    └── profile/index.tsx
+```
+
+### Key Hooks
+
+| Hook | File | Purpose |
+|------|------|---------|
+| `useAuth` | [`hooks/use-auth.ts`](hooks/use-auth.ts) | Auth state: `isAuthenticated`, `user`, `userRole` |
+| `useContracts` | [`hooks/useContracts.ts`](hooks/useContracts.ts) | Contract queries |
+| `useTasks` | [`hooks/useTasks.ts`](hooks/useTasks.ts) | Task queries |
+| `useMessages` | [`hooks/useMessages.ts`](hooks/useMessages.ts) | Chat messages |
+| `useInvoice` | [`hooks/useInvoice.ts`](hooks/useInvoice.ts) | Invoice with payment simulation |
+| `useNotifications` | [`hooks/useNotifications.ts`](hooks/useNotifications.ts) | Notification queries |
+
+### UI Components
+
+**Design System:** `src/components/ui/` (plain `StyleSheet`, no Tailwind)
+
+| Component | File | Description |
+|-----------|------|-------------|
+| Button | [`button.tsx`](src/components/ui/button.tsx) | Primary action button |
+| Card | [`card.tsx`](src/components/ui/card.tsx) | Container card |
+| Badge | [`badge.tsx`](src/components/ui/badge.tsx) | Status/count badge |
+| Input | [`input.tsx`](src/components/ui/input.tsx) | Text input field |
+| Screen | [`screen.tsx`](src/components/ui/screen.tsx) | Safe area wrapper |
+| Typography | [`typography.tsx`](src/components/ui/typography.tsx) | Text components |
+
+### Constants
+
+| Category | File |
+|----------|------|
+| Colors | [`src/constants/colors.ts`](src/constants/colors.ts) |
+| Typography | [`src/constants/typography.ts`](src/constants/typography.ts) |
+| Spacing | [`src/constants/spacing.ts`](src/constants/spacing.ts) |
 
 ---
 
 ## Design System
 
-All UI components use React Native `StyleSheet`. No Tailwind. Color constants are in `src/constants/colors.ts`:
+### Colors (`src/constants/colors.ts`)
 
-- `colors.primary` — Main brand color (#007AFF)
-- `colors.freelancer` — Freelancer role (#10B981, green)
-- `colors.client` — Client role (#8B5CF6, purple)
-- `colors.error`, `colors.success`, `colors.warning` — Semantic colors
+```typescript
+colors.primary     // #007AFF — Main brand
+colors.freelancer  // #10B981 — Freelancer role (green)
+colors.client      // #8B5CF6 — Client role (purple)
+colors.error       // Error state
+colors.success     // Success state
+colors.warning     // Warning state
+```
 
-Typography: `src/constants/typography.ts` (fontSizes)
-Spacing: `src/constants/spacing.ts` (spacing scale)
+### Typography (`src/constants/typography.ts`)
 
----
+Font sizes for headings, body, captions.
 
-## Convex Schema Notes
+### Spacing (`src/constants/spacing.ts`)
 
-The `users` table comes from `authTables` and has a fixed schema. Do NOT add fields directly to it. Instead:
-- For role → use the `userRoles` table
-- For push tokens → use the `userPushTokens` table
-- For app-specific user data → create a separate table
-
-Tables created so far:
-- `userRoles` — one role per user (upsert pattern)
-- `userPushTokens` — push notification tokens
-- `contracts`, `tasks`, `messages`, `invoices`, `notifications` — app data
+Consistent spacing scale (xs, sm, md, lg, xl, xxl).
 
 ---
 
@@ -258,12 +226,21 @@ Configured in `tsconfig.json`:
 - `hooks/*` → `./hooks/`
 - `lib/*` → `./lib/`
 
+<!-- additional-end -->
+
 ---
 
-## Next Session Notes
+## Additional Documentation
 
-Sprint 1 is complete. Sprint 2 will implement:
-- `convex/contracts.ts` — create, list, accept, decline contracts
-- `convex/tasks.ts` — task CRUD + timer
-- `convex/messages.ts` — real-time chat
-- UI screens for contract management, task tracking, and chat
+| Document | Description |
+|----------|-------------|
+| `docs/README.md` | Project README |
+| `docs/PRD.md` | Product Requirements |
+| `docs/ARCHITECTURE.md` | System architecture |
+| `docs/TECHNICAL_ROADMAP.md` | Technical implementation roadmap |
+| `docs/IMPLEMENTATION_ROADMAP.md` | Sprint-by-sprint roadmap |
+| `docs/DATABASE_SCHEMA.md` | Database schema details |
+| `docs/API_CONTRACT.md` | API endpoints |
+| `docs/API_DESIGN.md` | API design patterns |
+| `docs/SECURITY.md` | Security considerations |
+| `docs/USER_BLUEPRINT.md` | User personas |

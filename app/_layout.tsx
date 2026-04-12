@@ -4,6 +4,7 @@ import { StatusBar } from "expo-status-bar";
 import { ConvexReactClient } from "convex/react";
 import { ConvexAuthProvider } from "@convex-dev/auth/react";
 import * as SecureStore from "expo-secure-store";
+import { ErrorBoundary } from "../src/components/ui";
 import { usePushNotifications } from "../hooks/use-push-notifications";
 import { initSQLite } from "../lib/sqlite";
 import { colors } from "../src/constants/colors";
@@ -21,7 +22,9 @@ const secureStorage = {
 export default function RootLayout() {
   return (
     <ConvexAuthProvider client={convex} storage={secureStorage}>
-      <RootLayoutNav />
+      <ErrorBoundary>
+        <RootLayoutNav />
+      </ErrorBoundary>
     </ConvexAuthProvider>
   );
 }

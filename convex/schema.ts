@@ -101,7 +101,18 @@ export default defineSchema({
 
   notifications: defineTable({
     userId: v.id("users"),
-    type: v.string(),
+    type: v.union(
+      v.literal("contract_invite"),
+      v.literal("contract_accepted"),
+      v.literal("contract_declined"),
+      v.literal("task_complete"),
+      v.literal("invoice_received"),
+      v.literal("payment_received"),
+      v.literal("new_message"),
+      v.literal("time_tracked"),
+      v.literal("project_complete"),
+      v.literal("deliverable_released")
+    ),
     contractId: v.optional(v.id("contracts")),
     message: v.string(),
     read: v.boolean(),
@@ -126,6 +137,14 @@ export default defineSchema({
   })
     .index("by_user", ["userId"]),
 
+  // Email lookup table — enables O(1) email lookups instead of full table scan
+  userEmails: defineTable({
+    userId: v.id("users"),
+    email: v.string(),
+  })
+    .index("by_email", ["email"])
+    .index("by_user", ["userId"]),
+
   // Chat read status — tracks lastReadAt per user per contract
   chatReadStatus: defineTable({
     userId: v.id("users"),
@@ -133,4 +152,13 @@ export default defineSchema({
     lastReadAt: v.number(),
   })
     .index("by_user_contract", ["userId", "contractId"]),
+
+  // Notification preferences — per-user settings for which notification types to receive
+  notificationPreferences: defineTable({
+    userId: v.id("users"),
+    key: v.string(), // e.g., "contract_invite", "payment_received", etc.
+    enabled: v.boolean(),
+  })
+    .index("by_user", ["userId"])
+    .index("by_user_key", ["userId", "key"]),
 });

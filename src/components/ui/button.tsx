@@ -7,6 +7,7 @@ import {
   ViewStyle,
   TextStyle,
 } from "react-native";
+import * as Haptics from "expo-haptics";
 import { colors } from "../../constants/colors";
 import { fontSizes } from "../../constants/typography";
 import { spacing, borderRadius } from "../../constants/spacing";
@@ -107,9 +108,16 @@ export function Button({
   const variantConfig = variantStyles[variant];
   const sizeConfig = sizeStyles[size];
 
+  const handlePress = () => {
+    if (!disabled && !loading) {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      onPress();
+    }
+  };
+
   return (
     <Pressable
-      onPress={onPress}
+      onPress={handlePress}
       disabled={disabled || loading}
       style={({ pressed }) => [
         styles.container,

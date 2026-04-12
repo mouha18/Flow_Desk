@@ -15,9 +15,14 @@ export const listByContract = query({
       return { page: [], isDone: true, continueCursor: "" };
     }
 
-    // Verify contract exists
+    // SECURITY: Verify contract exists
     const contract = await ctx.db.get("contracts", args.contractId);
     if (!contract) throw new ConvexError("Contract not found");
+
+    // SECURITY: Verify user is a party to the contract
+    if (contract.freelancerId !== userId && contract.clientId !== userId) {
+      return { page: [], isDone: true, continueCursor: "" };
+    }
 
     // Return paginated messages ordered by _creationTime ascending (oldest first, newest at bottom)
     return await ctx.db
@@ -37,6 +42,14 @@ export const getUnreadCount = query({
     const userId = await getAuthUserId(ctx);
     if (!userId) return 0;
 
+
+    // SECURITY: Verify user is a party to the contract
+    const contract = await ctx.db.get("contracts", args.contractId);
+    if (!contract) return 0;
+    if (contract.freelancerId !== userId && contract.clientId !== userId) {
+      return 0;
+    }
+
     // Get last read timestamp for this user on this contract
     const readStatus = await ctx.db
       .query("chatReadStatus")
@@ -45,19 +58,19 @@ export const getUnreadCount = query({
     const lastReadAt = readStatus?.lastReadAt ?? 0;
 
     // Count messages where _creationTime > lastReadAt and senderId != userId
-    let unreadCount = 0;
+    // Use database-level filter for efficiency
     const messages = await ctx.db
       .query("messages")
       .withIndex("by_contract", (q) => q.eq("contractId", args.contractId))
+      .filter((q) =>
+        q.and(
+          q.gt(q.field("_creationTime"), lastReadAt),
+          q.neq(q.field("senderId"), userId)
+        )
+      )
       .collect();
-    
-    for (const msg of messages) {
-      if (msg._creationTime > lastReadAt && msg.senderId !== userId) {
-        unreadCount++;
-      }
-    }
 
-    return unreadCount;
+    return messages.length;
   },
 });
 
@@ -94,19 +107,20 @@ export const getUnreadCountsByContract = query({
         .first();
       const lastReadAt = readStatus?.lastReadAt ?? 0;
 
-      // Count unread messages
+      // Count unread messages using database-level filter
       const messages = await ctx.db
         .query("messages")
         .withIndex("by_contract", (q) => q.eq("contractId", contract._id))
+        .filter((q) =>
+          q.and(
+            q.gt(q.field("_creationTime"), lastReadAt),
+            q.neq(q.field("senderId"), userId)
+          )
+        )
         .collect();
+
       
-      let unreadCount = 0;
-      for (const msg of messages) {
-        if (msg._creationTime > lastReadAt && msg.senderId !== userId) {
-          unreadCount++;
-        }
-      }
-      
+      const unreadCount = messages.length;
       if (unreadCount > 0) {
         unreadCounts[contract._id] = unreadCount;
       }
@@ -116,6 +130,7 @@ export const getUnreadCountsByContract = query({
   },
 });
 
+
 // Mark chat as read (update lastReadAt for current user on this contract)
 export const markChatRead = mutation({
   args: {
@@ -124,6 +139,14 @@ export const markChatRead = mutation({
   handler: async (ctx, args) => {
     const userId = await getAuthUserId(ctx);
     if (!userId) throw new ConvexError("Not authenticated");
+
+
+    // SECURITY: Verify user is a party to the contract
+    const contract = await ctx.db.get("contracts", args.contractId);
+    if (!contract) throw new ConvexError("Contract not found");
+    if (contract.freelancerId !== userId && contract.clientId !== userId) {
+      throw new ConvexError("Not authorized to mark read for this contract");
+    }
 
     const now = Date.now();
 

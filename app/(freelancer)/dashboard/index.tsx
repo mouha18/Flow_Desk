@@ -1,6 +1,6 @@
-import { View, StyleSheet, FlatList } from "react-native";
+import { View, StyleSheet, FlatList, TouchableOpacity, Text } from "react-native";
 import { Stack, useRouter } from "expo-router";
-import { Heading, Typography, Screen, Card } from "@/components/ui";
+import { Heading, Typography, Screen, Card, SkeletonLoader } from "@/components/ui";
 import { ContractCard } from "@/components/contracts/ContractCard";
 import { useContracts } from "@/hooks/useContracts";
 import { useTasks } from "@/hooks/useTasks";
@@ -40,6 +40,8 @@ export default function FreelancerDashboardScreen() {
     );
   };
 
+  const isDataLoading = isLoading || earningsLoading;
+
   return (
     <>
       <Stack.Screen
@@ -49,79 +51,121 @@ export default function FreelancerDashboardScreen() {
         }}
       />
       <Screen style={styles.container} scrollable={false}>
-        <View style={styles.content}>
-          <View style={styles.statsRow}>
-            <Card style={styles.statCard}>
-              <Typography variant="caption" color={colors.gray500}>
-                Active Contracts
-              </Typography>
-              <Heading level="h2" color={colors.freelancer}>
-                {activeContracts.length}
-              </Heading>
-            </Card>
-            <Card style={styles.statCard}>
-              <Typography variant="caption" color={colors.gray500}>
-                Pending
-              </Typography>
-              <Heading level="h2" color={colors.warning}>
-                {pendingContracts.length}
-              </Heading>
-            </Card>
-            <Card style={styles.earningsCard}>
-              <Typography variant="caption" color={colors.gray500}>
-                Total Earnings
-              </Typography>
-              <Heading level="h2" color={colors.success}>
-                {formatCurrency(totalEarnings, "USD")}
-              </Heading>
-              <Typography variant="bodySmall" color={colors.gray500}>
-                {paidInvoicesCount} paid invoice{paidInvoicesCount !== 1 ? "s" : ""}
-              </Typography>
-            </Card>
+        {isDataLoading ? (
+          <View style={styles.skeletonContent}>
+            <View style={styles.statsRow}>
+              <SkeletonLoader height={80} borderRadius={12} style={styles.statCardSkeleton} />
+              <SkeletonLoader height={80} borderRadius={12} style={styles.statCardSkeleton} />
+              <SkeletonLoader height={80} borderRadius={12} style={styles.earningsCardSkeleton} />
+            </View>
+            <SkeletonLoader height={100} borderRadius={12} style={styles.listSkeleton} />
+            <SkeletonLoader height={100} borderRadius={12} style={styles.listSkeleton} />
           </View>
-
-          {pendingContracts.length > 0 && (
-            <View style={styles.section}>
-              <Heading level="h4" style={styles.sectionTitle}>
-                Pending Contracts
-              </Heading>
-              <FlatList
-                data={pendingContracts}
-                keyExtractor={(item) => item._id}
-                renderItem={({ item }) => (
-                  <ContractCardWithCompletion contract={item} />
-                )}
-                scrollEnabled={false}
-              />
+        ) : (
+          <View style={styles.content}>
+            <View style={styles.statsRow}>
+              <Card style={styles.statCard}>
+                <Typography variant="caption" color={colors.gray500}>
+                  Active Contracts
+                </Typography>
+                <Heading level="h2" color={colors.freelancer}>
+                  {activeContracts.length}
+                </Heading>
+              </Card>
+              <Card style={styles.statCard}>
+                <Typography variant="caption" color={colors.gray500}>
+                  Pending
+                </Typography>
+                <Heading level="h2" color={colors.warning}>
+                  {pendingContracts.length}
+                </Heading>
+              </Card>
+              <Card style={styles.earningsCard}>
+                <Typography variant="caption" color={colors.gray500}>
+                  Total Earnings
+                </Typography>
+                <Heading level="h2" color={colors.success}>
+                  {formatCurrency(totalEarnings, "USD")}
+                </Heading>
+                <Typography variant="bodySmall" color={colors.gray500}>
+                  {paidInvoicesCount} paid invoice{paidInvoicesCount !== 1 ? "s" : ""}
+                </Typography>
+              </Card>
             </View>
-          )}
 
-          {contracts.length === 0 ? (
-            <Card style={styles.emptyState}>
-              <View style={styles.emptyIcon}>
-                <Typography style={styles.emptyIconText}>+</Typography>
+            {activeContracts.length > 0 && (
+              <View style={styles.progressSection}>
+                <Text style={styles.sectionTitle}>Active Contracts</Text>
+                {activeContracts.slice(0, 3).map((contract) => (
+                  <TouchableOpacity
+                    key={contract._id}
+                    style={styles.progressCard}
+                    onPress={() => router.push(`/(freelancer)/contracts/${contract._id}`)}
+                  >
+                    <View style={styles.progressHeader}>
+                      <Text style={styles.progressTitle} numberOfLines={1}>{contract.title}</Text>
+                      <Text style={styles.progressPercent}>{contract.completionPercent}%</Text>
+                    </View>
+                    <View style={styles.progressBar}>
+                      <View
+                        style={[
+                          styles.progressFill,
+                          { width: `${contract.completionPercent}%` },
+                          contract.completionPercent === 100
+                            ? { backgroundColor: colors.success }
+                            : { backgroundColor: colors.freelancer }
+                        ]}
+                      />
+                    </View>
+                    <Text style={styles.progressClient}>{contract.clientName ?? contract.clientEmail}</Text>
+                  </TouchableOpacity>
+                ))}
               </View>
-              <Heading level="h3">No contracts yet</Heading>
-              <Typography variant="bodySmall" color={colors.gray500} style={styles.emptyText}>
-                Create your first contract to start working with clients
-              </Typography>
-            </Card>
-          ) : activeContracts.length > 0 ? (
-            <View style={styles.section}>
-              <Heading level="h4" style={styles.sectionTitle}>
-                Active Projects
-              </Heading>
-              <FlatList
-                data={activeContracts}
-                keyExtractor={(item) => item._id}
-                renderItem={({ item }) => (
-                  <ContractCardWithCompletion contract={item} />
-                )}
-                scrollEnabled={false}
-              />
-            </View>
-          ) : null}
-        </View>
+            )}
+
+            {pendingContracts.length > 0 && (
+              <View style={styles.section}>
+                <Heading level="h4" style={styles.sectionTitle}>
+                  Pending Contracts
+                </Heading>
+                <FlatList
+                  data={pendingContracts}
+                  keyExtractor={(item) => item._id}
+                  renderItem={({ item }) => (
+                    <ContractCardWithCompletion contract={item} />
+                  )}
+                  scrollEnabled={false}
+                />
+              </View>
+            )}
+
+            {contracts.length === 0 ? (
+              <Card style={styles.emptyState}>
+                <View style={styles.emptyIcon}>
+                  <Typography style={styles.emptyIconText}>+</Typography>
+                </View>
+                <Heading level="h3">No contracts yet</Heading>
+                <Typography variant="bodySmall" color={colors.gray500} style={styles.emptyText}>
+                  Create your first contract to start working with clients
+                </Typography>
+              </Card>
+            ) : activeContracts.length > 0 ? (
+              <View style={styles.section}>
+                <Heading level="h4" style={styles.sectionTitle}>
+                  Active Projects
+                </Heading>
+                <FlatList
+                  data={activeContracts}
+                  keyExtractor={(item) => item._id}
+                  renderItem={({ item }) => (
+                    <ContractCardWithCompletion contract={item} />
+                  )}
+                  scrollEnabled={false}
+                />
+              </View>
+            ) : null}
+          </View>
+        )}
       </Screen>
     </>
   );
@@ -131,6 +175,10 @@ const styles = StyleSheet.create({
   container: {
     backgroundColor: colors.gray50,
   },
+  skeletonContent: {
+    flex: 1,
+    gap: spacing[4],
+  },
   content: {
     flex: 1,
     gap: spacing[4],
@@ -138,6 +186,15 @@ const styles = StyleSheet.create({
   statsRow: {
     flexDirection: "row",
     gap: spacing[4],
+  },
+  statCardSkeleton: {
+    flex: 1,
+  },
+  earningsCardSkeleton: {
+    flex: 1,
+  },
+  listSkeleton: {
+    marginTop: spacing[2],
   },
   statCard: {
     flex: 1,
@@ -178,5 +235,48 @@ const styles = StyleSheet.create({
   emptyText: {
     marginTop: spacing[2],
     textAlign: "center",
+  },
+  // Progress section styles
+  progressSection: {
+    marginTop: spacing[6],
+  },
+  progressCard: {
+    backgroundColor: colors.surface,
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 12,
+  },
+  progressHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 8,
+  },
+  progressTitle: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: colors.text,
+    flex: 1,
+    marginRight: 8,
+  },
+  progressPercent: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: colors.primary,
+  },
+  progressBar: {
+    height: 6,
+    backgroundColor: colors.border,
+    borderRadius: 3,
+    overflow: "hidden",
+    marginBottom: 6,
+  },
+  progressFill: {
+    height: "100%",
+    borderRadius: 3,
+  },
+  progressClient: {
+    fontSize: 12,
+    color: colors.textSecondary,
   },
 });

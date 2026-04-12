@@ -1,32 +1,30 @@
-import { internalMutation } from "./_generated/server";
+import { internalAction } from "./_generated/server";
 import { v } from "convex/values";
 
 /**
- * Internal mutation to send Expo push notification.
- * This is called by the sendPushNotification action.
- * Must be in a non-Node.js file since it's a mutation.
+ * Internal action to send Expo push notification.
+ * Uses internalAction because it performs network I/O (fetch to Expo Push API).
+ * Database queries are done by the caller action and tokens are passed in.
  */
-export const _sendPushToUser = internalMutation({
+export const _sendPushToUser = internalAction({
   args: {
-    userId: v.id("users"),
+    tokens: v.array(
+      v.object({
+        token: v.string(),
+      })
+    ),
     title: v.string(),
     body: v.string(),
     contractId: v.optional(v.id("contracts")),
     invoiceId: v.optional(v.id("invoices")),
   },
   handler: async (ctx, args) => {
-    // Get all push tokens for this user directly from database
-    const tokens = await ctx.db
-      .query("userPushTokens")
-      .withIndex("by_user", (q) => q.eq("userId", args.userId))
-      .collect();
-
-    if (!tokens || tokens.length === 0) {
+    if (!args.tokens || args.tokens.length === 0) {
       return null;
     }
 
     // Build notification messages for all tokens
-    const messages = tokens.map((tokenRecord: { token: string }) => ({
+    const messages = args.tokens.map((tokenRecord) => ({
       to: tokenRecord.token,
       title: args.title,
       body: args.body,

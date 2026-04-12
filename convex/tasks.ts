@@ -3,9 +3,12 @@ import { v, ConvexError } from "convex/values";
 import { getAuthUserId } from "@convex-dev/auth/server";
 import { internal, api } from "./_generated/api";
 
-// Type assertion for API access to modules with slashes in path names
-const internalAny = internal as any;
-const apiAny = api as any;
+// Type assertion for internal API access
+// The internal API from Convex's generated types doesn't correctly expose all modules
+// via dot notation (particularly modules with slashes like "actions/push").
+// Using documented `as any` cast to enable bracket notation access pattern.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const internalTyped = internal as any;
 
 /**
  * Helper function to send a notification to a user
@@ -50,6 +53,12 @@ export const list = query({
   handler: async (ctx, args) => {
     const userId = await getAuthUserId(ctx);
     if (!userId) return [];
+
+    // SECURITY: Verify user is a party to the contract
+    const contract = await ctx.db.get("contracts", args.contractId);
+    if (!contract) return []; // Contract doesn't exist
+    // Allow access if user is the freelancer OR the client
+    if (contract.freelancerId !== userId && contract.clientId !== userId) return [];
 
     return await ctx.db
       .query("tasks")
@@ -220,7 +229,7 @@ export const stopTimer = mutation({
         
         // Schedule push notification to client via scheduler (not ctx.runAction in mutation)
         if (contract.clientId) {
-          await ctx.scheduler.runAfter(0, internalAny.actions.push.sendTaskCompleteNotification, {
+          await ctx.scheduler.runAfter(0, internalTyped["actions/push"]["sendTaskCompleteNotification"], {
             userId: contract.clientId,
             title: "Work Complete! 🎉",
             body: `All tasks for "${contract.title}" are done! Ready to generate invoice.`,

@@ -3,10 +3,12 @@ import { v, ConvexError } from "convex/values";
 import { getAuthUserId } from "@convex-dev/auth/server";
 import { internal } from "./_generated/api";
 
-// Type assertion for internal API access to modules with slashes in path names
-// This is needed because TypeScript doesn't naturally resolve "actions/ai" as a property
-type InternalApi = typeof internal;
-const internalAny = internal as any;
+// Type assertion for internal API access
+// The internal API from Convex's generated types doesn't correctly expose all modules
+// via dot notation (particularly modules with slashes like "actions/push").
+// Using documented `as any` cast to enable bracket notation access pattern.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const internalTyped = internal as any;
 
 // List all contracts for current user (filtered by role)
 export const list = query({
@@ -139,7 +141,7 @@ export const create = mutation({
     const freelancerName = freelancer?.name ?? "Your freelancer";
 
     // Schedule AI outreach email
-    await ctx.scheduler.runAfter(0, internalAny.ai.generateOutreachEmail, {
+    await ctx.scheduler.runAfter(0, internalTyped["ai"]["generateOutreachEmail"], {
       clientEmail: args.clientEmail,
       clientName: clientName,
       freelancerName,
@@ -179,7 +181,7 @@ export const accept = mutation({
     });
 
     // Schedule contract accepted emails
-    await ctx.scheduler.runAfter(0, internalAny.email.sendContractAcceptedEmail, {
+    await ctx.scheduler.runAfter(0, internalTyped["email"]["sendContractAcceptedEmail"], {
       contractId: args.contractId,
     });
 
@@ -322,7 +324,7 @@ export const submitCompletion = mutation({
     });
 
     // Notify client via push
-    await ctx.scheduler.runAfter(0, internalAny.actions.push.sendWorkDeliveredNotification, {
+    await ctx.scheduler.runAfter(0, internalTyped["actions/push"]["sendWorkDeliveredNotification"], {
       contractId: contract._id,
     });
 
@@ -355,7 +357,7 @@ export const approveDelivery = mutation({
     });
 
     // Notify freelancer
-    await ctx.scheduler.runAfter(0, internalAny.actions.push.sendPaymentReleasedNotification, {
+    await ctx.scheduler.runAfter(0, internalTyped["actions/push"]["sendPaymentReleasedNotification"], {
       contractId: contract._id,
     });
 
@@ -398,7 +400,7 @@ export const disputeDelivery = mutation({
     });
 
     // Notify freelancer
-    await ctx.scheduler.runAfter(0, internalAny.actions.push.sendDisputeNotification, {
+    await ctx.scheduler.runAfter(0, internalTyped["actions/push"]["sendDisputeNotification"], {
       contractId: contract._id,
       complaint: args.complaint,
     });

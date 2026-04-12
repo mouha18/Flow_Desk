@@ -52,7 +52,7 @@ export default function ClientContractDetailScreen() {
       await acceptContract({ contractId });
       
       // Redirect to invoice page for payment
-      router.push(`/contracts/${contractId}/invoice`);
+      router.push(`/(client)/contracts/${contractId}/invoice`);
     } catch (error) {
       Alert.alert("Error", "Failed to accept contract");
     }
@@ -228,7 +228,7 @@ export default function ClientContractDetailScreen() {
                 <Button
                   title="Pay Invoice"
                   variant="primary"
-                  onPress={() => router.push(`/contracts/${contractId}/invoice`)}
+                  onPress={() => router.push(`/(client)/contracts/${contractId}/invoice`)}
                   style={styles.fullButton}
                 />
               )}

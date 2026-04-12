@@ -1,3 +1,7 @@
+// KEEP IN SYNC WITH convex/schema.ts
+// This file manually mirrors the Convex schema for frontend TypeScript support.
+// When schema.ts changes, update this file accordingly.
+
 // User Types
 export type UserRole = "freelancer" | "client";
 
@@ -20,12 +24,13 @@ export interface User {
   _creationTime: number;
 }
 
-// Contract Types
-export type ContractStatus = "pending" | "active" | "completed" | "declined";
+// Contract Types - FIXED
+export type ContractStatus = "pending" | "active" | "completed" | "declined" | "finished" | "disputed";
 export type PricingType = "fixed" | "hourly";
 export type PaymentMethod = "stripe" | "naboo_orange" | "naboo_wave";
 export type PaymentTiming = "now" | "later";
 export type AiEmailTone = "formal" | "friendly" | "casual";
+export type EscrowStatus = "held" | "delivered" | "released" | "refunded";
 
 export interface Deliverable {
   name: string;
@@ -41,6 +46,9 @@ export interface Contract {
   clientPseudo?: string;
   title: string;
   status: ContractStatus;
+  escrowStatus?: EscrowStatus;
+  escrowPaidAt?: number;
+  escrowReleasedAt?: number;
   pricingType: PricingType;
   fixedPrice?: number;
   hourlyRate?: number;
@@ -50,7 +58,6 @@ export interface Contract {
   completionPercent: number;
   deliverableLink?: string;
   deliverables?: Deliverable[];
-  freelancerName?: string;
   _creationTime: number;
 }
 
@@ -98,6 +105,7 @@ export interface Invoice {
   notes: string | null;
   status: InvoiceStatus;
   paymentSimulated: boolean;
+  deliverables?: Deliverable[];
   _creationTime: number;
 }
 
@@ -109,7 +117,10 @@ export type NotificationType =
   | "task_complete"
   | "invoice_received"
   | "payment_received"
-  | "new_message";
+  | "new_message"
+  | "time_tracked"
+  | "project_complete"
+  | "deliverable_released";
 
 export interface Notification {
   _id: string;

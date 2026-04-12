@@ -4,8 +4,12 @@ import { getAuthUserId } from "@convex-dev/auth/server";
 import { api, internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
 
-// Type assertions for API access
-const internalAny = internal as any;
+// Type assertion for API access
+// The internal API from Convex's generated types doesn't correctly expose all modules
+// via dot notation (particularly modules with slashes like "actions/push").
+// Using documented `as any` cast to enable bracket notation access pattern.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const internalTyped = internal as any;
 
 // Line item type matching schema
 const lineItemType = v.object({
@@ -22,7 +26,15 @@ export const getById = query({
     const userId = await getAuthUserId(ctx);
     if (!userId) return null;
 
-    return await ctx.db.get("invoices", args.invoiceId);
+    const invoice = await ctx.db.get("invoices", args.invoiceId);
+    if (!invoice) return null;
+
+    // Verify user is a party to the contract
+    const contract = await ctx.db.get("contracts", invoice.contractId);
+    if (!contract) return null;
+    if (contract.freelancerId !== userId && contract.clientId !== userId) return null;
+
+    return invoice;
   },
 });
 
@@ -33,10 +45,19 @@ export const getByContract = query({
     const userId = await getAuthUserId(ctx);
     if (!userId) return null;
 
-    return await ctx.db
+    const invoice = await ctx.db
       .query("invoices")
       .withIndex("by_contract", (q) => q.eq("contractId", args.contractId))
       .first();
+
+    if (!invoice) return null;
+
+    // Verify user is a party to the contract
+    const contract = await ctx.db.get("contracts", args.contractId);
+    if (!contract) return null;
+    if (contract.freelancerId !== userId && contract.clientId !== userId) return null;
+
+    return invoice;
   },
 });
 
@@ -76,6 +97,44 @@ export const listByFreelancer = query({
       }
     }
 
+    return invoices;
+  },
+});
+
+// List all invoices for client's contracts
+export const listByClient = query({
+  args: {},
+  handler: async (ctx) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) return [];
+
+    // Verify user is a client
+    const userRole = await ctx.db
+      .query("userRoles")
+      .withIndex("by_user", (q) => q.eq("userId", userId))
+      .first();
+
+
+    if (!userRole || userRole.role !== "client") {
+      return [];
+    }
+
+    // Get all contracts where this user is the client
+    const contracts = await ctx.db
+      .query("contracts")
+      .withIndex("by_client", (q) => q.eq("clientId", userId))
+      .collect();
+    // Get all paid invoices for these contracts
+    const invoices = [];
+    for (const contract of contracts) {
+      const invoice = await ctx.db
+        .query("invoices")
+        .withIndex("by_contract", (q) => q.eq("contractId", contract._id))
+        .first();
+      if (invoice && invoice.status === "paid") {
+        invoices.push(invoice);
+      }
+    }
     return invoices;
   },
 });
@@ -245,7 +304,7 @@ export const generateWithAI = mutation({
 
     // Schedule the AI action to generate and create the invoice
     // Pass contract and tasks data since action has no DB access
-    await ctx.scheduler.runAfter(0, internalAny.ai.generateInvoiceFromTasks, {
+    await ctx.scheduler.runAfter(0, internalTyped.ai.generateInvoiceFromTasks, {
       contractId: args.contractId,
       userId,
       contract: {
@@ -336,7 +395,7 @@ export const send = mutation({
     // Pass clientId for push notification (the notification goes TO the client)
     // Pass invoice/contract data directly since actions can't run authenticated queries
     try {
-      await ctx.scheduler.runAfter(0, internalAny.actions.push.sendInvoiceReceivedNotification, {
+      await ctx.scheduler.runAfter(0, internalTyped.actions.push.sendInvoiceReceivedNotification, {
         userId: contract.clientId!,
         invoiceId: args.invoiceId,
         contractId: invoice.contractId,
@@ -344,7 +403,7 @@ export const send = mutation({
       // Strip internal Convex fields before passing to action
       const { _creationTime, _id, ...invoiceForAction } = invoice;
       
-      await ctx.scheduler.runAfter(0, internalAny.email.sendInvoiceEmail, {
+      await ctx.scheduler.runAfter(0, internalTyped.email.sendInvoiceEmail, {
         invoiceId: args.invoiceId,
         invoice: invoiceForAction,
         contract: {
@@ -405,12 +464,12 @@ export const simulatePayment = mutation({
 
     // Schedule push notification and email to freelancer
     try {
-      await ctx.scheduler.runAfter(0, internalAny.actions.push.sendPaymentReceivedNotification, {
+      await ctx.scheduler.runAfter(0, internalTyped.actions.push.sendPaymentReceivedNotification, {
         userId: contract.freelancerId,
         invoiceId: args.invoiceId,
         contractId: invoice.contractId,
       });
-      await ctx.scheduler.runAfter(0, internalAny.email.sendPaymentReceivedEmail, {
+      await ctx.scheduler.runAfter(0, internalTyped.email.sendPaymentReceivedEmail, {
         invoiceId: args.invoiceId,
       });
     } catch (e) {
@@ -477,7 +536,7 @@ export const simulatePaymentNow = mutation({
 
     // Schedule notification to freelancer
     try {
-      await ctx.scheduler.runAfter(0, internalAny.actions.push.sendPaymentReceivedNotification, {
+      await ctx.scheduler.runAfter(0, internalTyped.actions.push.sendPaymentReceivedNotification, {
         userId: contract.freelancerId!,
         contractId: contract._id,
         invoiceId,

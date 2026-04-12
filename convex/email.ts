@@ -4,7 +4,10 @@ import { v } from "convex/values";
 import { api, internal } from "./_generated/api";
 
 // Type assertion for internal API access
-const internalAny = internal as any;
+// The internal API from Convex's generated types doesn't correctly expose all modules
+// via dot notation. Using documented `as any` cast to enable access.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const internalTyped = internal as any;
 
 // Type for line items
 interface LineItem {
@@ -135,14 +138,14 @@ export const sendContractAcceptedEmail = action({
     });
 
     if (freelancerEmail) {
-      await ctx.runAction(internalAny.email.sendEmail, {
+      await ctx.runAction(internalTyped.email.sendEmail, {
         to: freelancerEmail,
         subject: `Contract Accepted: ${contractTitle}`,
         html: freelancerContent,
       });
     }
 
-    await ctx.runAction(internalAny.email.sendEmail, {
+    await ctx.runAction(internalTyped.email.sendEmail, {
       to: clientEmail,
       subject: `Contract Confirmed: ${contractTitle}`,
       html: clientContent,
@@ -216,7 +219,7 @@ export const sendInvoiceEmail = action({
       footer: "Payment due upon receipt · FlowDesk",
     });
 
-    await ctx.runAction(internalAny.email.sendEmail, {
+    await ctx.runAction(internalTyped.email.sendEmail, {
       to: clientEmail,
       subject: `Invoice from ${freelancerName}: ${contract.title}`,
       html: content,
@@ -282,7 +285,7 @@ export const sendPaymentReceivedEmail = action({
     });
 
     if (freelancerEmail) {
-      await ctx.runAction(internalAny.email.sendEmail, {
+      await ctx.runAction(internalTyped.email.sendEmail, {
         to: freelancerEmail,
         subject: `Payment Received: ${invoice.total.toFixed(2)} for ${contract.title}`,
         html: content,

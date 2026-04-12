@@ -127,6 +127,12 @@ export function DrawerContent({ contracts = [], userRole = "freelancer", unreadC
           isActive: isActive("/dashboard"),
           onPress: () => navigateTo(`${basePath}/dashboard`),
         },
+        {
+          label: userRole === "freelancer" ? "Earnings" : "My Services",
+          icon: "💰",
+          isActive: isActive("/invoices"),
+          onPress: () => navigateTo(`${basePath}/invoices`),
+        },
       ],
     },
     {
@@ -144,16 +150,6 @@ export function DrawerContent({ contracts = [], userRole = "freelancer", unreadC
           isActive: isActive(`/contracts/${contract._id}`),
           onPress: () => navigateTo(`${basePath}/contracts/${contract._id}`),
         })),
-      ],
-    },
-    {
-      items: [
-        {
-          label: "Tasks",
-          icon: "✅",
-          isActive: isActive("/tasks"),
-          onPress: () => navigateTo(`${basePath}/tasks`),
-        },
       ],
     },
     {
@@ -175,28 +171,20 @@ export function DrawerContent({ contracts = [], userRole = "freelancer", unreadC
               },
             ],
     },
-    ...(userRole === "freelancer"
-      ? [
-          {
-            items: [
-              {
-                label: "Invoices",
-                icon: "💰",
-                isActive: isActive("/invoices"),
-                onPress: () => navigateTo(`${basePath}/invoices`),
-              },
-            ],
-          },
-        ]
-      : []),
     {
       items: [
         {
           label: "Notifications",
           icon: "🔔",
-          isActive: isActive("/notifications"),
+          isActive: isActive("/notifications") && !pathname?.includes("/notifications/preferences"),
           onPress: () => navigateTo(`${basePath}/notifications`),
           badge: notificationUnreadCount,
+        },
+        {
+          label: "Notification Settings",
+          icon: "⚙️",
+          isActive: isActive("/notifications/preferences"),
+          onPress: () => navigateTo(`${basePath}/notifications/preferences`),
         },
       ],
     },

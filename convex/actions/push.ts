@@ -4,7 +4,10 @@ import { v } from "convex/values";
 import { api, internal } from "../_generated/api";
 
 // Type assertion for internal API access
-const internalAny = internal as any;
+// The internal API from Convex's generated types doesn't correctly expose all modules
+// via dot notation. Using documented `as any` cast to enable bracket notation access pattern.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const internalTyped = internal as any;
 
 /**
  * Expo Push Notification integration.
@@ -28,9 +31,14 @@ export const sendPushNotification = action({
   },
   returns: v.null(),
   handler: async (ctx, args) => {
-    // Schedule the internal mutation to send push
-    await ctx.scheduler.runAfter(0, internalAny.pushInternal._sendPushToUser, {
+    // Fetch push tokens from database
+    const tokens = await ctx.runQuery(api.users.getPushTokens, {
       userId: args.userId,
+    });
+
+    // Schedule the internal action to send push
+    await ctx.scheduler.runAfter(0, internalTyped.pushInternal._sendPushToUser, {
+      tokens,
       title: args.title,
       body: args.body,
       contractId: args.data?.contractId,
@@ -58,8 +66,12 @@ export const sendTaskCompleteNotification = action({
   },
   returns: v.null(),
   handler: async (ctx, args) => {
-    await ctx.scheduler.runAfter(0, internalAny.pushInternal._sendPushToUser, {
+    const tokens = await ctx.runQuery(api.users.getPushTokens, {
       userId: args.userId,
+    });
+
+    await ctx.scheduler.runAfter(0, internalTyped.pushInternal._sendPushToUser, {
+      tokens,
       title: args.title,
       body: args.body,
       contractId: args.data?.contractId,
@@ -81,8 +93,12 @@ export const sendInvoiceReceivedNotification = action({
   },
   returns: v.null(),
   handler: async (ctx, args) => {
-    await ctx.scheduler.runAfter(0, internalAny.pushInternal._sendPushToUser, {
+    const tokens = await ctx.runQuery(api.users.getPushTokens, {
       userId: args.userId,
+    });
+
+    await ctx.scheduler.runAfter(0, internalTyped.pushInternal._sendPushToUser, {
+      tokens,
       title: "New Invoice Received 📄",
       body: "You have received a new invoice. Please review and complete payment.",
       contractId: args.contractId,
@@ -105,8 +121,12 @@ export const sendPaymentReceivedNotification = action({
   },
   returns: v.null(),
   handler: async (ctx, args) => {
-    await ctx.scheduler.runAfter(0, internalAny.pushInternal._sendPushToUser, {
+    const tokens = await ctx.runQuery(api.users.getPushTokens, {
       userId: args.userId,
+    });
+
+    await ctx.scheduler.runAfter(0, internalTyped.pushInternal._sendPushToUser, {
+      tokens,
       title: "Payment Received! 💰",
       body: "Your client has completed payment. Please share the deliverable link.",
       contractId: args.contractId,
@@ -132,8 +152,12 @@ export const sendWorkDeliveredNotification = action({
     });
     if (!contract || !contract.clientId) return null;
 
-    await ctx.scheduler.runAfter(0, internalAny.pushInternal._sendPushToUser, {
+    const tokens = await ctx.runQuery(api.users.getPushTokens, {
       userId: contract.clientId,
+    });
+
+    await ctx.scheduler.runAfter(0, internalTyped.pushInternal._sendPushToUser, {
+      tokens,
       title: "Work Delivered! 🎉",
       body: "Your freelancer has submitted the work. Please review and approve.",
       contractId: args.contractId,
@@ -158,8 +182,12 @@ export const sendPaymentReleasedNotification = action({
     });
     if (!contract) return null;
 
-    await ctx.scheduler.runAfter(0, internalAny.pushInternal._sendPushToUser, {
+    const tokens = await ctx.runQuery(api.users.getPushTokens, {
       userId: contract.freelancerId,
+    });
+
+    await ctx.scheduler.runAfter(0, internalTyped.pushInternal._sendPushToUser, {
+      tokens,
       title: "Payment Released! 💰",
       body: "Client approved the work. Your payment has been released.",
       contractId: args.contractId,
@@ -185,8 +213,12 @@ export const sendDisputeNotification = action({
     });
     if (!contract) return null;
 
-    await ctx.scheduler.runAfter(0, internalAny.pushInternal._sendPushToUser, {
+    const tokens = await ctx.runQuery(api.users.getPushTokens, {
       userId: contract.freelancerId,
+    });
+
+    await ctx.scheduler.runAfter(0, internalTyped.pushInternal._sendPushToUser, {
+      tokens,
       title: "Client Raised a Dispute ⚠️",
       body: "Client is not satisfied. Check your chat for details.",
       contractId: args.contractId,

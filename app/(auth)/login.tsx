@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { View, StyleSheet } from "react-native";
+import { View, StyleSheet, TouchableOpacity } from "react-native";
 import { Link, useRouter } from "expo-router";
 import { Button, Input, Heading, Typography, Screen } from "@/components/ui";
 import { colors } from "@/constants/colors";
@@ -99,6 +99,12 @@ export default function LoginScreen() {
             loading={isLoading}
             fullWidth
           />
+
+          <TouchableOpacity onPress={() => router.push("/(auth)/legal")}>
+            <Typography variant="bodySmall" color={colors.primary} style={styles.legalLink}>
+              Terms & Privacy
+            </Typography>
+          </TouchableOpacity>
         </View>
 
         <View style={styles.footer}>
@@ -141,5 +147,9 @@ const styles = StyleSheet.create({
   },
   link: {
     fontWeight: "600",
+  },
+  legalLink: {
+    textAlign: "center",
+    marginTop: 16,
   },
 });

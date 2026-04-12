@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { View, Text, StyleSheet, Pressable, ViewStyle } from "react-native";
+import * as Haptics from "expo-haptics";
 import { colors } from "../../constants/colors";
 import { fontSizes, fontWeights } from "../../constants/typography";
 import { borderRadius, spacing } from "../../constants/spacing";
@@ -87,6 +88,7 @@ export function TaskItem({ task, contract, onPress, onStop, onStart, onComplete,
       onStart?.(task);
     } else if (isRunning) {
       // Stop timer -> completed
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       onStop?.(task);
     } else if (isCompleted) {
       // Could show details or allow editing

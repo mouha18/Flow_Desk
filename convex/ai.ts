@@ -4,7 +4,10 @@ import { v } from "convex/values";
 import { api, internal } from "./_generated/api";
 
 // Type assertion for internal API access
-const internalAny = internal as any;
+// The internal API from Convex's generated types doesn't correctly expose all modules
+// via dot notation. Using documented `as any` cast to enable access.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const internalTyped = internal as any;
 
 /**
  * OpenRouter API integration for AI-powered email generation.
@@ -136,8 +139,8 @@ export const generateOutreachEmail = action({
 
     // Send the email via Resend
     if (resendApiKey) {
-      const internalAny = internal as any;
-      const emailResult = await ctx.runAction(internalAny.email.sendEmail, {
+      const internalTyped = internal as any;
+      const emailResult = await ctx.runAction(internalTyped.email.sendEmail, {
         to: args.clientEmail,
         subject,
         html: `<p>${body.replace(/\n/g, "<br>")}</p>`,
@@ -327,7 +330,7 @@ export const generateInvoiceFromTasks = action({
     const total = subtotal + tax;
 
     // Schedule the internal mutation to create the invoice
-    await ctx.scheduler.runAfter(0, internalAny.invoices._createInvoiceFromAI, {
+    await ctx.scheduler.runAfter(0, internalTyped.invoices._createInvoiceFromAI, {
       contractId: args.contractId,
       lineItems,
       subtotal,

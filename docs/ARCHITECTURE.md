@@ -1,13 +1,13 @@
-# Flowdesk — Architecture
+# FlowDesk — Architecture
 
-**Version:** 1.0  
-**Last Updated:** 2026-04-05  
+**Version:** 2.0  
+**Last Updated:** 2026-04-12  
 
 ---
 
 ## 1. Overview
 
-Flowdesk is a real-time mobile application built on a serverless reactive stack. The frontend is a React Native + Expo app that subscribes to Convex queries for live data — no polling, no REST layer. All business logic lives in Convex functions (queries, mutations, actions). AI invoice generation and email composition happen in Convex actions (server-side), keeping API keys off the device. Local SQLite and AsyncStorage provide an offline read layer. Push notifications are triggered server-side from Convex actions via the Expo Push API.
+FlowDesk is a real-time mobile application built on a serverless reactive stack. The frontend is a React Native + Expo app that subscribes to Convex queries for live data — no polling, no REST layer. All business logic lives in Convex functions (queries, mutations, actions). AI invoice generation and email composition happen in Convex actions (server-side), keeping API keys off the device. Local SQLite and AsyncStorage provide an offline read layer. Push notifications are triggered server-side from Convex actions via the Expo Push API.
 
 The architecture prioritizes: real-time sync over eventual consistency, server-side AI execution for security, and a clean role-based navigation split between freelancer and client.
 
@@ -18,10 +18,10 @@ The architecture prioritizes: real-time sync over eventual consistency, server-s
 ```mermaid
 graph TD
     subgraph Mobile App
-        RN[React Native + Expo]
-        NAV[React Navigation Stack/Tab/Drawer]
+        RN[React Native + Expo SDK 54]
+        NAV[React Navigation Drawer + Stack]
         SQLITE[expo-sqlite Cache]
-        ASYNCSTORAGE[AsyncStorage]
+        ASYNCSTORAGE[AsyncStorage + SecureStore]
         EXPOPUSH[Expo Notifications SDK]
     end
 
@@ -58,20 +58,49 @@ graph TD
 
 **Purpose:** Full mobile UI for both freelancer and client roles.
 
-**Framework:** React Native with Expo managed workflow, TypeScript.
+**Framework:** React Native 0.81.5 with Expo managed workflow, TypeScript, Expo Router for file-based routing.
 
 **Key responsibilities:**
-- Role-based navigation (separate navigator trees for freelancer and client)
+- Role-based navigation (separate Drawer navigators for freelancer and client)
 - Real-time UI via Convex `useQuery` subscriptions
 - Offline read via SQLite cache (contracts, tasks, messages)
-- Auth token + user prefs via AsyncStorage
+- Auth token via expo-secure-store, user prefs via AsyncStorage
 - Push token registration on launch
 - AI invoice editing UI before send
 
 **Key screens:**
-- Auth: Login, Register, Role Selection
-- Freelancer: Dashboard, Contract List, Contract Detail, Task List, Invoice Draft, Invoice Send, Chat, Notifications, Profile
-- Client: Dashboard, Pending Contracts, Contract Detail, Invoice View, Payment Simulation, Chat, Notifications, Profile
+| Auth | Freelancer | Client |
+|---|---|---|
+| Login | Dashboard | Dashboard |
+| Register | Contract List | Contract List |
+| Role Selection | Contract Detail | Contract Detail (accept/decline) |
+| Legal (Terms) | Task List + Timer | Invoice View |
+| | Invoice Draft + Send | Payment Simulation |
+| | Chat | Chat |
+| | Notifications | Notifications |
+| | Profile | Profile |
+
+**File structure:**
+```
+app/                    # Expo Router screens
+  _layout.tsx           # Root layout with ConvexAuthProvider
+  index.tsx             # Entry point (auth + role redirect)
+  (auth)/               # Auth flow
+  (freelancer)/         # Freelancer flow (Drawer)
+  (client)/             # Client flow (Drawer)
+
+src/                    # Shared source code
+  components/           # Reusable components
+    ui/                 # Design system (Button, Card, Badge, Input, etc.)
+    contracts/          # Contract-specific components
+    tasks/              # Task components
+    invoice/            # Invoice components
+    chat/               # Chat components
+    notifications/      # Notification components
+    drawer/             # Drawer navigation components
+  constants/            # Colors, typography, spacing
+  types/                # TypeScript types
+```
 
 ---
 
@@ -89,6 +118,21 @@ graph TD
 - Convex Auth for user session management
 - Push token storage per user
 
+**Tables:**
+| Table | Purpose |
+|---|---|
+| `users` | Convex Auth user accounts (from authTables) |
+| `userRoles` | Freelancer/Client role per user |
+| `userPushTokens` | Expo push tokens per user |
+| `userEmails` | Email lookup optimization |
+| `chatReadStatus` | Last read timestamp per user/contract |
+| `notificationPreferences` | Per-user notification settings |
+| `contracts` | Contract records with escrow fields |
+| `tasks` | Task records with time tracking |
+| `messages` | Chat messages |
+| `invoices` | Invoice records with line items |
+| `notifications` | Notification records |
+
 ---
 
 ### 3.3 Anthropic API (AI Layer)
@@ -98,25 +142,25 @@ graph TD
 **Called from:** Convex actions (server-side only, key never exposed to client)
 
 **Task 1 — Email generation:**  
-Input: freelancer name, client name, project title, tone (formal/friendly/casual)  
+Input: freelancer name, client email, project title, tone (formal/friendly/casual)  
 Output: subject line + email body string
 
 **Task 2 — Invoice generation:**  
-Input: contract type, tasks array (title, timeSpent, hourlyRate), fixedPrice, clientName  
+Input: contract type, tasks array (title, timeSpent), fixedPrice, clientName, deliverables  
 Output: JSON — `{ lineItems: [{description, hours, rate, amount}], subtotal, tax, total, notes }`
 
 ---
 
 ### 3.4 Resend (Email)
 
-**Purpose:** Transactional email at 3 lifecycle moments.
+**Purpose:** Transactional email at key lifecycle moments.
 
 **Triggers:**
 1. Client accepts contract → email to freelancer + thank-you email to client
 2. Invoice sent → email to client with invoice summary + payment CTA
 3. Payment simulated → email to freelancer (paid confirmation) + email to client (deliverable link)
 
-**Template:** Plain HTML, minimal, Flowdesk-branded.
+**Template:** Plain HTML, minimal, FlowDesk-branded.
 
 ---
 
@@ -125,6 +169,20 @@ Output: JSON — `{ lineItems: [{description, hours, rate, amount}], subtotal, t
 **Purpose:** Remote push notifications triggered from Convex actions.
 
 **Flow:** On key mutations, a Convex action reads the target user's stored `pushToken` and sends a push via `https://exp.host/--/api/v2/push/send`.
+
+**Notification types:**
+| Type | Recipient | Trigger |
+|---|---|---|
+| `contract_invite` | Client | Contract created |
+| `contract_accepted` | Freelancer | Client accepts |
+| `contract_declined` | Freelancer | Client declines |
+| `task_complete` | Freelancer | Task marked complete |
+| `invoice_received` | Client | Invoice sent |
+| `payment_received` | Freelancer | Payment simulated |
+| `new_message` | Both | Chat message sent |
+| `time_tracked` | Client | Task timer stopped |
+| `project_complete` | Client | All tasks done |
+| `deliverable_released` | Client | Payment confirmed |
 
 ---
 
@@ -136,7 +194,7 @@ Output: JSON — `{ lineItems: [{description, hours, rate, amount}], subtotal, t
 1. Freelancer fills contract form → taps Submit
 2. useMutation('contracts:create') called with form data
 3. Convex mutation: inserts contract (status: pending), stores clientEmail
-4. Mutation schedules Convex action: generateOutreachEmail
+4. Mutation schedules Convex action: generateOutreachEmail (convex/ai.ts)
 5. Action calls Anthropic API → returns email copy
 6. Action calls Resend → sends email to clientEmail
 7. If client has account: Action calls Expo Push API → sends push to client
@@ -150,7 +208,7 @@ Output: JSON — `{ lineItems: [{description, hours, rate, amount}], subtotal, t
 1. Client taps Accept on pending contract
 2. useMutation('contracts:accept') called
 3. Convex mutation: updates contract status to 'active'
-4. Mutation schedules action: onContractAccepted
+4. Mutation schedules action: sendAcceptEmails (convex/email.ts)
 5. Action calls Resend → email to freelancer + email to client
 6. Action calls Expo Push API → push to freelancer
 7. Freelancer push: "Your contract was accepted"
@@ -181,13 +239,14 @@ Output: JSON — `{ lineItems: [{description, hours, rate, amount}], subtotal, t
 ```text
 1. Client taps "Pay" on invoice screen
 2. useMutation('invoices:simulatePayment') called
-3. Convex mutation: updates invoice status to 'paid'
+3. Convex mutation: updates invoice status to 'paid', escrowStatus to 'released'
 4. Schedules action: onPaymentConfirmed
 5. Action calls Resend → email to freelancer (payment confirmation)
-6. Action calls Resend → email to client (deliverable link)
+6. Action calls Resend → email to client (deliverable links)
 7. Action calls Expo Push API → push to freelancer
-8. Action calls Expo Push API → push to client (with deliverable link)
+8. Action calls Expo Push API → push to client (with deliverable links)
 9. Contract status updated to 'completed'
+10. Deliverable links revealed to client
 ```
 
 ---

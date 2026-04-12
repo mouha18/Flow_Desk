@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useCallback, useState } from "react";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "../convex/_generated/api";
 import type { Id } from "../convex/_generated/dataModel";
@@ -6,8 +6,17 @@ import type { Contract, Task, TaskStatus } from "../src/types";
 import { cacheContracts } from "../lib/sqlite";
 
 export function useContracts() {
+  const [refreshing, setRefreshing] = useState(false);
   const contracts = useQuery(api.contracts.list);
   const isLoading = contracts === undefined;
+
+  const refetch = useCallback(async () => {
+    setRefreshing(true);
+    // Convex uses subscriptions - the data auto-updates
+    // Wait a brief moment to show refresh indicator, then stop
+    await new Promise(resolve => setTimeout(resolve, 500));
+    setRefreshing(false);
+  }, []);
 
   const createContract = useMutation(api.contracts.create);
   const acceptContract = useMutation(api.contracts.accept);
@@ -25,6 +34,8 @@ export function useContracts() {
   return {
     contracts: contracts ?? [],
     isLoading,
+    refreshing,
+    refetch,
     createContract,
     acceptContract,
     declineContract,

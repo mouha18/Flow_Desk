@@ -1,5 +1,6 @@
 import React from "react";
 import { View, Text, StyleSheet, Pressable, ViewStyle } from "react-native";
+import * as Haptics from "expo-haptics";
 import { colors } from "../../constants/colors";
 import { fontSizes, fontWeights } from "../../constants/typography";
 import { borderRadius, spacing, shadows } from "../../constants/spacing";
@@ -21,6 +22,8 @@ const statusBadgeVariant: Record<ContractStatus, "default" | "success" | "warnin
   active: "success",
   completed: "default",
   declined: "error",
+  finished: "default",
+  disputed: "error",
 };
 
 const statusLabels: Record<ContractStatus, string> = {
@@ -28,10 +31,13 @@ const statusLabels: Record<ContractStatus, string> = {
   active: "Active",
   completed: "Completed",
   declined: "Declined",
+  finished: "Finished",
+  disputed: "Disputed",
 };
 
 export function ContractCard({ contract, onPress, style, completionPercent: completionPercentProp, viewerRole, freelancerName }: ContractCardProps) {
   const handlePress = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     onPress?.(contract);
   };
 

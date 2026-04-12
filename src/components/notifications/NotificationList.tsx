@@ -6,6 +6,7 @@ import {
   Text,
   ViewStyle,
   ListRenderItem,
+  RefreshControl,
 } from "react-native";
 import { colors } from "../../constants/colors";
 import { fontSizes, fontWeights } from "../../constants/typography";
@@ -57,8 +58,13 @@ export function NotificationList({
       style={[styles.container, style]}
       contentContainerStyle={styles.contentContainer}
       showsVerticalScrollIndicator={false}
-      onRefresh={onRefresh}
-      refreshing={refreshing}
+      refreshControl={
+        <RefreshControl
+          refreshing={refreshing}
+          onRefresh={onRefresh ?? (() => {})}
+          tintColor={colors.primary}
+        />
+      }
       ItemSeparatorComponent={() => <View style={styles.separator} />}
     />
   );

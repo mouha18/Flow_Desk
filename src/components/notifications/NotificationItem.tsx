@@ -1,5 +1,6 @@
 import React from "react";
 import { View, Text, StyleSheet, Pressable, ViewStyle } from "react-native";
+import * as Haptics from "expo-haptics";
 import { colors } from "../../constants/colors";
 import { fontSizes, fontWeights } from "../../constants/typography";
 import { borderRadius, spacing } from "../../constants/spacing";
@@ -19,6 +20,9 @@ const notificationIcons: Record<NotificationType, string> = {
   invoice_received: "📄",
   payment_received: "💰",
   new_message: "💬",
+  time_tracked: "⏱️",
+  project_complete: "🎉",
+  deliverable_released: "📦",
 };
 
 function formatRelativeTime(timestamp: number): string {
@@ -50,6 +54,11 @@ export function NotificationItem({
   const icon = notificationIcons[notification.type] || "🔔";
   const timeAgo = formatRelativeTime(notification._creationTime);
 
+  const handlePress = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    onPress?.(notification);
+  };
+
   return (
     <Pressable
       style={[
@@ -57,7 +66,7 @@ export function NotificationItem({
         !notification.read && styles.containerUnread,
         style,
       ]}
-      onPress={() => onPress?.(notification)}
+      onPress={handlePress}
     >
       <View style={styles.iconContainer}>
         <Text style={styles.icon}>{icon}</Text>

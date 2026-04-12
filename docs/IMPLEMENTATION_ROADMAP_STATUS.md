@@ -1,58 +1,82 @@
-# Sprint 1 Implementation Status
+# Implementation Roadmap Status
 
-**Last Updated:** 2026-04-06
+**Last Updated:** 2026-04-12
 
 ---
 
-## Sprint 1 — Foundation ✅ COMPLETED (pending schema push)
+## Summary
 
-### Task Checklist
-
-| # | Task | Type | Files | Status |
-|---|---|---|---|---|
-| 1 | Expo project init (managed, TypeScript) | `infra` | `app.json`, `package.json`, `tsconfig.json` | ✅ |
-| 2 | Install all dependencies | `infra` | `package.json` | ✅ |
-| 3 | Define all TypeScript types | `chore` | `src/types/index.ts` | ✅ |
-| 4 | Define Convex schema | `infra` | `convex/schema.ts` | ✅ |
-| 5 | Configure Convex Auth | `infra` | `convex/auth.config.ts`, `convex/auth.ts` | ✅ |
-| 6 | Build design system constants | `chore` | `src/constants/*` | ✅ |
-| 7 | Build base UI components | `feat` | `src/components/ui/*` | ✅ |
-| 8 | Build auth screens | `feat` | `app/(auth)/*` | ✅ |
-| 9 | Build root layout with auth guard | `feat` | `app/_layout.tsx` | ✅ |
-| 10 | Build Freelancer Tab + Drawer | `feat` | `app/(freelancer)/_layout.tsx` | ✅ |
-| 11 | Build Client Tab + Drawer | `feat` | `app/(client)/_layout.tsx` | ✅ |
-| 12 | AsyncStorage helpers | `feat` | `lib/storage.ts` | ✅ |
-| 13 | SQLite init + table creation | `feat` | `lib/sqlite.ts` | ✅ |
-| 14 | Push token registration | `feat` | `hooks/usePushNotifications.ts`, `convex/users.ts` | ✅ |
-
-### Definition of Done
-
-| Item | Status | Notes |
+| Sprint | Name | Status |
 |---|---|---|
-| App compiles and runs on Expo Go | ✅ | Metro server starts, app loads |
-| Login and Register screens work with Convex Auth | 🔄 | Wired up, needs schema push + end-to-end test |
-| Role selection persists to AsyncStorage | ✅ | `lib/storage.ts` setRole/getRole |
-| Freelancer sees freelancer tab layout; client sees client tab layout | ✅ | Role-based navigator in `app/_layout.tsx` |
-| All three navigation types (Stack, Tab, Drawer) reachable | ✅ | Stack=auth/main flows, Tab=bottom tabs, Drawer=freelancer/client |
-| Push token stored in Convex after permission granted | 🔄 | Mutation fixed (userPushTokens table), needs schema push |
-
-### Key Fixes Applied During Sprint 1
-
-1. **Metro crash** — Removed broken `react-native-css` / NativeWind packages; using plain StyleSheet
-2. **Convex Auth resolution** — Proper `@convex-dev/auth` v0.0.71 with `convexAuth()`, `authTables`, `getAuthUserId`
-3. **ConvexAuthProvider** — Wrapped root with `ConvexAuthProvider` + `expo-secure-store` adapter
-4. **Password flow param** — Added `flow: "signIn"` / `flow: "signUp"` to signIn calls
-5. **pushToken schema** — Created separate `userPushTokens` table (authTables users table is fixed schema)
-
-### Remaining Action Items
-
-- [ ] Run `npx convex dev` to push updated schema (includes userPushTokens table)
-- [ ] End-to-end test: register → role select → dashboard
-- [ ] Update `app.json` with real EAS projectId for push notifications
-- [ ] Mark items in roadmap as ✅ once verified
+| Sprint 1 | Foundation | ✅ COMPLETED |
+| Sprint 2 | Core Features (Contracts + Tasks + Chat) | ✅ COMPLETED |
+| Sprint 3 | UI & Logic Fixes | ✅ COMPLETED |
+| Sprint 4 | Payment & Earnings | 🔄 IN PROGRESS |
+| Sprint 5 | Polish, Empty States, Demo Prep | 📋 PLANNED |
 
 ---
 
-## Sprint 2-4 — Not Started
+## Sprint 1 — Foundation ✅ COMPLETED
 
-See `docs/IMPLEMENTATION_ROADMAP.md` for full task list.
+All tasks completed. Schema pushed via `npx convex dev`.
+
+**Definition of Done:** All items verified.
+
+---
+
+## Sprint 2 — Core Features ✅ COMPLETED
+
+All tasks completed including contract CRUD, task timer, real-time chat, notifications.
+
+**Definition of Done:** All items verified.
+
+---
+
+## Sprint 3 — UI & Logic Fixes ✅ COMPLETED
+
+Key fixes applied:
+- Contract pricing logic (fixed vs hourly)
+- Multi-deliverable support with `deliverables` array
+- Chat scroll to bottom + unread badge
+- ChatReadStatus table for last read tracking
+- notificationPreferences table for per-user settings
+- Role-based notification filtering (10 types)
+- Legal screen (terms of service) added
+
+---
+
+## Sprint 4 — Payment & Earnings 🔄 IN PROGRESS
+
+**Completed:**
+- AI outreach email generation
+- Resend email triggers (accept, invoice, payment)
+- Expo push notification sends
+- AI invoice generation
+- Invoice draft editing
+- Payment simulation (Stripe / NabooPay)
+- Escrow status tracking
+- Deliverable link release on payment
+
+**In Progress:**
+- Freelancer earnings query + dashboard display
+- Preferred payment method highlighting
+- Client pay button on contract view
+
+---
+
+## Sprint 5 — Polish 📋 PLANNED
+
+Not yet started. See `docs/IMPLEMENTATION_ROADMAP.md` for task list.
+
+---
+
+## Key Files Reference
+
+| File | Purpose |
+|---|---|
+| `convex/schema.ts` | Database schema with all tables |
+| `convex/ai.ts` | AI email and invoice generation |
+| `convex/email.ts` | Resend email triggers |
+| `convex/actions/push.ts` | Expo push notification sender |
+| `convex/invoices.ts` | Invoice CRUD + payment simulation |
+| `src/components/invoice/PaymentSimulation.tsx` | Payment UI component |

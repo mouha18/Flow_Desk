@@ -55,15 +55,17 @@ export const getByEmail = query({
   handler: async (ctx, args) => {
     const emailLower = args.email.toLowerCase();
     
-    // Query all users and filter by email (authTables doesn't expose email index)
-    // In production, you'd want to add an email index to users table
-    const users = await ctx.db.query("users").collect();
-    const user = users.find((u) => u.email?.toLowerCase() === emailLower);
+    // Use indexed lookup instead of full table scan
+    const userEmailEntry = await ctx.db
+      .query("userEmails")
+      .withIndex("by_email", (q) => q.eq("email", emailLower))
+      .first();
     
+    if (!userEmailEntry) return null;
+
+    const user = await ctx.db.get("users", userEmailEntry.userId);
     if (!user) return null;
 
-
-    // Get role from userRoles table
     const userRole = await ctx.db
       .query("userRoles")
       .withIndex("by_user", (q) => q.eq("userId", user._id))
@@ -123,6 +125,7 @@ export const getPushTokens = query({
 export const updateProfile = mutation({
   args: {
     name: v.optional(v.string()),
+    email: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const userId = await getAuthUserId(ctx);
@@ -131,6 +134,25 @@ export const updateProfile = mutation({
     if (args.name !== undefined) {
       await ctx.db.patch("users", userId, { name: args.name });
     }
+    
+    // If email changed, update the userEmails lookup table
+    if (args.email !== undefined) {
+      const existingEmailEntry = await ctx.db
+        .query("userEmails")
+        .withIndex("by_user", (q) => q.eq("userId", userId))
+        .first();
+      
+      if (existingEmailEntry) {
+        await ctx.db.patch("userEmails", existingEmailEntry._id, { email: args.email.toLowerCase() });
+      } else {
+        // This shouldn't happen normally, but handle case where entry doesn't exist yet
+        await ctx.db.insert("userEmails", {
+          userId,
+          email: args.email.toLowerCase(),
+        });
+      }
+    }
+    
     return null;
   },
 });
@@ -161,6 +183,51 @@ export const setUserRole = mutation({
       createdAt: Date.now(),
     });
 
+    // Also populate the userEmails lookup table for indexed email lookups
+    const user = await ctx.db.get("users", userId);
+    if (user?.email) {
+      // Check if entry already exists
+      const existingEmailEntry = await ctx.db
+        .query("userEmails")
+        .withIndex("by_user", (q) => q.eq("userId", userId))
+        .first();
+      
+      if (!existingEmailEntry) {
+        await ctx.db.insert("userEmails", {
+          userId,
+          email: user.email.toLowerCase(),
+        });
+      }
+    }
+
     return null;
+  },
+});
+
+// Backfill userEmails table for existing users (run once, then can be removed)
+export const backfillUserEmails = mutation({
+  args: {},
+  handler: async (ctx) => {
+    const users = await ctx.db.query("users").collect();
+    let count = 0;
+    
+    for (const user of users) {
+      if (!user.email) continue;
+      
+      const existing = await ctx.db
+        .query("userEmails")
+        .withIndex("by_user", (q) => q.eq("userId", user._id))
+        .first();
+      
+      if (!existing) {
+        await ctx.db.insert("userEmails", {
+          userId: user._id,
+          email: user.email.toLowerCase(),
+        });
+        count++;
+      }
+    }
+    
+    return { count, total: users.length };
   },
 });

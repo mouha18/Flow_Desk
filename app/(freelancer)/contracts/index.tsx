@@ -1,16 +1,49 @@
-import { View, StyleSheet, FlatList, Pressable } from "react-native";
+import React from "react";
+import { View, StyleSheet, FlatList, Pressable, Text, RefreshControl, TextInput, TouchableOpacity } from "react-native";
 import { Stack, useRouter } from "expo-router";
-import { Heading, Typography, Screen, Card } from "@/components/ui";
+import { Heading, Typography, Screen, Card, SkeletonLoader } from "@/components/ui";
 import { ContractCard } from "@/components/contracts/ContractCard";
 import { colors } from "@/constants/colors";
 import { spacing } from "@/constants/spacing";
 import { useContracts } from "@/hooks/useContracts";
 import { useTasks } from "@/hooks/useTasks";
-import type { Contract } from "@/types";
+import type { Contract, ContractStatus } from "@/types";
+
+type SortOption = "newest" | "oldest" | "price_high" | "price_low" | "status";
 
 export default function FreelancerContractsScreen() {
   const router = useRouter();
-  const { contracts, isLoading } = useContracts();
+  const { contracts, isLoading, refreshing, refetch } = useContracts();
+  const [searchQuery, setSearchQuery] = React.useState("");
+  const [statusFilter, setStatusFilter] = React.useState<ContractStatus | "all">("all");
+  const [sortBy, setSortBy] = React.useState<SortOption>("newest");
+
+  // Filter contracts based on search and status
+  const filteredContracts = (contracts as Contract[]).filter((contract) => {
+    const matchesSearch =
+      searchQuery === "" ||
+      contract.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (contract.clientName ?? "").toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesStatus = statusFilter === "all" || contract.status === statusFilter;
+    return matchesSearch && matchesStatus;
+  });
+
+  const sortedContracts = [...filteredContracts].sort((a, b) => {
+    switch (sortBy) {
+      case "newest":
+        return b._creationTime - a._creationTime;
+      case "oldest":
+        return a._creationTime - b._creationTime;
+      case "price_high":
+        return (b.fixedPrice ?? b.hourlyRate ?? 0) - (a.fixedPrice ?? a.hourlyRate ?? 0);
+      case "price_low":
+        return (a.fixedPrice ?? a.hourlyRate ?? 0) - (b.fixedPrice ?? b.hourlyRate ?? 0);
+      case "status":
+        return a.status.localeCompare(b.status);
+      default:
+        return 0;
+    }
+  });
 
   const handleContractPress = (contract: Contract) => {
     router.push(`/(freelancer)/contracts/${contract._id}`);
@@ -39,12 +72,21 @@ export default function FreelancerContractsScreen() {
   };
 
   const renderEmptyState = () => (
-    <Card style={styles.emptyState}>
-      <Heading level="h3">No contracts yet</Heading>
-      <Typography variant="bodySmall" color={colors.gray500} style={styles.emptyText}>
-        Create your first contract to start working
-      </Typography>
-    </Card>
+    <View style={styles.emptyState}>
+      <Text style={styles.emptyIcon}>📝</Text>
+      <Text style={styles.emptyTitle}>No contracts yet</Text>
+      <Text style={styles.emptySubtitle}>
+        Create your first contract to get started
+      </Text>
+    </View>
+  );
+
+  const renderSkeletonList = () => (
+    <View style={styles.skeletonList}>
+      <SkeletonLoader height={100} borderRadius={12} style={styles.skeletonCard} />
+      <SkeletonLoader height={100} borderRadius={12} style={styles.skeletonCard} />
+      <SkeletonLoader height={100} borderRadius={12} style={styles.skeletonCard} />
+    </View>
   );
 
   return (
@@ -57,23 +99,78 @@ export default function FreelancerContractsScreen() {
       />
       <Screen style={styles.container} scrollable={false}>
         {isLoading ? (
-          <Card style={styles.loadingState}>
-            <Typography variant="bodySmall" color={colors.gray500}>
-              Loading contracts...
-            </Typography>
-          </Card>
+          renderSkeletonList()
         ) : contracts.length === 0 ? (
           renderEmptyState()
         ) : (
-          <FlatList
-            data={contracts as Contract[]}
-            keyExtractor={(item) => item._id}
-            renderItem={({ item }) => (
-              <ContractCardWithCompletion contract={item} />
-            )}
-            contentContainerStyle={styles.list}
-            showsVerticalScrollIndicator={false}
-          />
+          <>
+            <View style={styles.searchContainer}>
+              <TextInput
+                style={styles.searchInput}
+                placeholder="Search contracts..."
+                value={searchQuery}
+                onChangeText={setSearchQuery}
+                placeholderTextColor={colors.textSecondary}
+              />
+            </View>
+            <View style={styles.filterRow}>
+              {(["all", "active", "pending", "finished"] as const).map((status) => (
+                <TouchableOpacity
+                  key={status}
+                  style={[styles.filterChip, statusFilter === status && styles.filterChipActive]}
+                  onPress={() => setStatusFilter(status as ContractStatus | "all")}
+                >
+                  <Text
+                    style={[
+                      styles.filterChipText,
+                      statusFilter === status && styles.filterChipTextActive,
+                    ]}
+                  >
+                    {status.charAt(0).toUpperCase() + status.slice(1)}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+            <View style={styles.sortRow}>
+              <Text style={styles.sortLabel}>Sort:</Text>
+              {(["newest", "oldest", "price"] as const).map((sort) => (
+                <TouchableOpacity
+                  key={sort}
+                  style={[styles.sortChip, sortBy === sort && styles.sortChipActive]}
+                  onPress={() => setSortBy(sort as any)}
+                >
+                  <Text style={[styles.sortChipText, sortBy === sort && styles.sortChipTextActive]}>
+                    {sort === "newest" ? "Newest" : sort === "oldest" ? "Oldest" : "Price"}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+            <FlatList
+              data={sortedContracts}
+              keyExtractor={(item) => item._id}
+              renderItem={({ item }) => (
+                <ContractCardWithCompletion contract={item} />
+              )}
+              contentContainerStyle={styles.list}
+              showsVerticalScrollIndicator={false}
+              refreshControl={
+                <RefreshControl
+                  refreshing={refreshing}
+                  onRefresh={refetch}
+                  tintColor={colors.primary}
+                />
+              }
+              ListEmptyComponent={
+                <View style={styles.emptyState}>
+                  <Text style={styles.emptyIcon}>🔍</Text>
+                  <Text style={styles.emptyTitle}>No contracts found</Text>
+                  <Text style={styles.emptySubtitle}>
+                    Try adjusting your search or filter
+                  </Text>
+                </View>
+              }
+            />
+          </>
         )}
         
         {/* Floating Action Button */}
@@ -89,8 +186,78 @@ const styles = StyleSheet.create({
   container: {
     backgroundColor: colors.gray50,
   },
+  searchContainer: {
+    backgroundColor: colors.white,
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    marginHorizontal: spacing[4],
+    marginTop: spacing[4],
+    marginBottom: 12,
+  },
+  searchInput: {
+    fontSize: 16,
+    color: colors.gray700,
+  },
+  filterRow: {
+    flexDirection: "row",
+    marginHorizontal: spacing[4],
+    marginBottom: 16,
+    gap: 8,
+  },
+  filterChip: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    backgroundColor: colors.white,
+    borderWidth: 1,
+    borderColor: colors.gray200,
+  },
+  filterChipActive: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
+  },
+  filterChipText: {
+    fontSize: 14,
+    color: colors.gray500,
+  },
+  filterChipTextActive: {
+    color: "#fff",
+    fontWeight: "600",
+  },
+  sortRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 16,
+    gap: 8,
+  },
+  sortLabel: {
+    fontSize: 14,
+    color: colors.textSecondary,
+    marginRight: 4,
+  },
+  sortChip: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+    backgroundColor: colors.white,
+    borderWidth: 1,
+    borderColor: colors.gray200,
+  },
+  sortChipActive: {
+    backgroundColor: colors.freelancer,
+    borderColor: colors.freelancer,
+  },
+  sortChipText: {
+    fontSize: 12,
+    color: colors.textSecondary,
+  },
+  sortChipTextActive: {
+    color: "#fff",
+    fontWeight: "600",
+  },
   list: {
-    padding: spacing[4],
+    paddingHorizontal: spacing[4],
     paddingBottom: 100,
   },
   card: {
@@ -98,17 +265,28 @@ const styles = StyleSheet.create({
   },
   emptyState: {
     alignItems: "center",
-    padding: spacing[8],
-    marginTop: spacing[4],
+    padding: spacing[10],
   },
-  loadingState: {
-    alignItems: "center",
-    padding: spacing[8],
-    marginTop: spacing[4],
+  emptyIcon: {
+    fontSize: 48,
+    marginBottom: spacing[3],
   },
-  emptyText: {
-    marginTop: spacing[2],
+  emptyTitle: {
+    fontSize: 18,
+    fontWeight: "600",
+    color: colors.textPrimary,
+    marginBottom: spacing[2],
+  },
+  emptySubtitle: {
+    fontSize: 14,
+    color: colors.textSecondary,
     textAlign: "center",
+  },
+  skeletonList: {
+    padding: spacing[4],
+  },
+  skeletonCard: {
+    marginBottom: spacing[3],
   },
   fab: {
     position: "absolute",
