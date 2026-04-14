@@ -1,12 +1,15 @@
 import React from "react";
-import { View, StyleSheet, FlatList, Pressable, Text, RefreshControl, TextInput, TouchableOpacity } from "react-native";
+import { View, StyleSheet, FlatList, RefreshControl, TextInput, TouchableOpacity } from "react-native";
 import { Stack, useRouter } from "expo-router";
-import { Heading, Typography, Screen, Card, SkeletonLoader } from "@/components/ui";
+import { useQuery } from "convex/react";
+import { api } from "../../../convex/_generated/api";
+import { Typography, SkeletonLoader, Icon } from "@/components/ui";
 import { ContractCard } from "@/components/contracts/ContractCard";
-import { colors } from "@/constants/colors";
-import { spacing } from "@/constants/spacing";
 import { useContracts } from "@/hooks/useContracts";
 import { useTasks } from "@/hooks/useTasks";
+import { colors } from "@/constants/colors";
+import { spacing } from "@/constants/spacing";
+import { Bell, Plus, Search as SearchIcon } from "lucide-react-native";
 import type { Contract, ContractStatus } from "@/types";
 
 type SortOption = "newest" | "oldest" | "price_high" | "price_low" | "status";
@@ -14,6 +17,7 @@ type SortOption = "newest" | "oldest" | "price_high" | "price_low" | "status";
 export default function FreelancerContractsScreen() {
   const router = useRouter();
   const { contracts, isLoading, refreshing, refetch } = useContracts();
+  const notificationUnreadCount = useQuery(api.notifications.unreadCount) ?? 0;
   const [searchQuery, setSearchQuery] = React.useState("");
   const [statusFilter, setStatusFilter] = React.useState<ContractStatus | "all">("all");
   const [sortBy, setSortBy] = React.useState<SortOption>("newest");
@@ -23,7 +27,7 @@ export default function FreelancerContractsScreen() {
     const matchesSearch =
       searchQuery === "" ||
       contract.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (contract.clientName ?? "").toLowerCase().includes(searchQuery.toLowerCase());
+      (contract.clientDisplayName ?? "").toLowerCase().includes(searchQuery.toLowerCase());
     const matchesStatus = statusFilter === "all" || contract.status === statusFilter;
     return matchesSearch && matchesStatus;
   });
@@ -67,17 +71,15 @@ export default function FreelancerContractsScreen() {
     );
   };
 
-  const handleCreatePress = () => {
-    router.push("/(freelancer)/contracts/new");
-  };
-
   const renderEmptyState = () => (
     <View style={styles.emptyState}>
-      <Text style={styles.emptyIcon}>📝</Text>
-      <Text style={styles.emptyTitle}>No contracts yet</Text>
-      <Text style={styles.emptySubtitle}>
+      <View style={styles.emptyIconContainer}>
+        <Icon name="pen-line" size="xl" color={colors.gray300} />
+      </View>
+      <Typography variant="body" style={styles.emptyTitle}>No contracts yet</Typography>
+      <Typography variant="bodySmall" color={colors.gray500} style={styles.emptySubtitle}>
         Create your first contract to get started
-      </Text>
+      </Typography>
     </View>
   );
 
@@ -95,9 +97,24 @@ export default function FreelancerContractsScreen() {
         options={{
           title: "Contracts",
           headerLargeTitle: true,
+          headerRight: () => (
+            <TouchableOpacity
+              onPress={() => router.push("/(freelancer)/notifications" as any)}
+              style={{ marginRight: 16, padding: 4, position: "relative" }}
+            >
+              <Bell size={22} color={colors.gray700} strokeWidth={2} />
+              {notificationUnreadCount > 0 && (
+                <View style={styles.bellBadge}>
+                  <Typography variant="caption" color={colors.white} style={styles.bellBadgeText}>
+                    {notificationUnreadCount > 9 ? "9+" : notificationUnreadCount}
+                  </Typography>
+                </View>
+              )}
+            </TouchableOpacity>
+          ),
         }}
       />
-      <Screen style={styles.container} scrollable={false}>
+      <View style={styles.container}>
         {isLoading ? (
           renderSkeletonList()
         ) : contracts.length === 0 ? (
@@ -105,43 +122,47 @@ export default function FreelancerContractsScreen() {
         ) : (
           <>
             <View style={styles.searchContainer}>
+              <SearchIcon size={18} color={colors.gray400} strokeWidth={2} style={{ marginRight: 8 } as any} />
               <TextInput
                 style={styles.searchInput}
                 placeholder="Search contracts..."
                 value={searchQuery}
                 onChangeText={setSearchQuery}
-                placeholderTextColor={colors.textSecondary}
+                placeholderTextColor={colors.gray500}
               />
             </View>
             <View style={styles.filterRow}>
-              {(["all", "active", "pending", "finished"] as const).map((status) => (
+              {(["all", "active", "pending", "finished", "declined", "disputed"] as const).map((status) => (
                 <TouchableOpacity
                   key={status}
                   style={[styles.filterChip, statusFilter === status && styles.filterChipActive]}
                   onPress={() => setStatusFilter(status as ContractStatus | "all")}
                 >
-                  <Text
-                    style={[
-                      styles.filterChipText,
-                      statusFilter === status && styles.filterChipTextActive,
-                    ]}
+                  <Typography
+                    variant="bodySmall"
+                    color={statusFilter === status ? colors.white : colors.gray600}
+                    style={statusFilter === status ? styles.filterChipTextActive : undefined}
                   >
                     {status.charAt(0).toUpperCase() + status.slice(1)}
-                  </Text>
+                  </Typography>
                 </TouchableOpacity>
               ))}
             </View>
             <View style={styles.sortRow}>
-              <Text style={styles.sortLabel}>Sort:</Text>
+              <Typography variant="bodySmall" color={colors.gray500} style={styles.sortLabel}>Sort:</Typography>
               {(["newest", "oldest", "price"] as const).map((sort) => (
                 <TouchableOpacity
                   key={sort}
                   style={[styles.sortChip, sortBy === sort && styles.sortChipActive]}
                   onPress={() => setSortBy(sort as any)}
                 >
-                  <Text style={[styles.sortChipText, sortBy === sort && styles.sortChipTextActive]}>
+                  <Typography
+                    variant="caption"
+                    color={sortBy === sort ? colors.white : colors.gray500}
+                    style={sortBy === sort ? styles.sortChipTextActive : undefined}
+                  >
                     {sort === "newest" ? "Newest" : sort === "oldest" ? "Oldest" : "Price"}
-                  </Text>
+                  </Typography>
                 </TouchableOpacity>
               ))}
             </View>
@@ -157,16 +178,18 @@ export default function FreelancerContractsScreen() {
                 <RefreshControl
                   refreshing={refreshing}
                   onRefresh={refetch}
-                  tintColor={colors.primary}
+                  tintColor={colors.accent}
                 />
               }
               ListEmptyComponent={
                 <View style={styles.emptyState}>
-                  <Text style={styles.emptyIcon}>🔍</Text>
-                  <Text style={styles.emptyTitle}>No contracts found</Text>
-                  <Text style={styles.emptySubtitle}>
+                  <View style={styles.emptyIconContainer}>
+                    <Icon name="search" size="xl" color={colors.gray300} />
+                  </View>
+                  <Typography variant="body" style={styles.emptyTitle}>No contracts found</Typography>
+                  <Typography variant="bodySmall" color={colors.gray500} style={styles.emptySubtitle}>
                     Try adjusting your search or filter
-                  </Text>
+                  </Typography>
                 </View>
               }
             />
@@ -174,10 +197,14 @@ export default function FreelancerContractsScreen() {
         )}
         
         {/* Floating Action Button */}
-        <Pressable style={styles.fab} onPress={handleCreatePress}>
-          <Typography style={styles.fabText}>+</Typography>
-        </Pressable>
-      </Screen>
+        <TouchableOpacity
+          style={styles.fab}
+          onPress={() => router.push("/(freelancer)/contracts/new" as any)}
+          activeOpacity={0.8}
+        >
+          <Plus size={24} color={colors.white} strokeWidth={2.5} />
+        </TouchableOpacity>
+      </View>
     </>
   );
 }
@@ -185,6 +212,7 @@ export default function FreelancerContractsScreen() {
 const styles = StyleSheet.create({
   container: {
     backgroundColor: colors.gray50,
+    flex: 1,
   },
   searchContainer: {
     backgroundColor: colors.white,
@@ -194,10 +222,13 @@ const styles = StyleSheet.create({
     marginHorizontal: spacing[4],
     marginTop: spacing[4],
     marginBottom: 12,
+    flexDirection: "row",
+    alignItems: "center",
   },
   searchInput: {
     fontSize: 16,
     color: colors.gray700,
+    flex: 1,
   },
   filterRow: {
     flexDirection: "row",
@@ -209,20 +240,15 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderRadius: 20,
-    backgroundColor: colors.white,
+    backgroundColor: colors.gray100,
     borderWidth: 1,
     borderColor: colors.gray200,
   },
   filterChipActive: {
-    backgroundColor: colors.primary,
-    borderColor: colors.primary,
-  },
-  filterChipText: {
-    fontSize: 14,
-    color: colors.gray500,
+    backgroundColor: colors.accent,
+    borderColor: colors.accent,
   },
   filterChipTextActive: {
-    color: "#fff",
     fontWeight: "600",
   },
   sortRow: {
@@ -232,28 +258,22 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   sortLabel: {
-    fontSize: 14,
-    color: colors.textSecondary,
     marginRight: 4,
+    marginLeft: spacing[4],
   },
   sortChip: {
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 16,
-    backgroundColor: colors.white,
+    backgroundColor: colors.gray100,
     borderWidth: 1,
     borderColor: colors.gray200,
   },
   sortChipActive: {
-    backgroundColor: colors.freelancer,
-    borderColor: colors.freelancer,
-  },
-  sortChipText: {
-    fontSize: 12,
-    color: colors.textSecondary,
+    backgroundColor: colors.accent,
+    borderColor: colors.accent,
   },
   sortChipTextActive: {
-    color: "#fff",
     fontWeight: "600",
   },
   list: {
@@ -267,19 +287,21 @@ const styles = StyleSheet.create({
     alignItems: "center",
     padding: spacing[10],
   },
-  emptyIcon: {
-    fontSize: 48,
+  emptyIconContainer: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: colors.gray100,
+    alignItems: "center",
+    justifyContent: "center",
     marginBottom: spacing[3],
   },
   emptyTitle: {
-    fontSize: 18,
     fontWeight: "600",
-    color: colors.textPrimary,
+    color: colors.gray900,
     marginBottom: spacing[2],
   },
   emptySubtitle: {
-    fontSize: 14,
-    color: colors.textSecondary,
     textAlign: "center",
   },
   skeletonList: {
@@ -290,24 +312,34 @@ const styles = StyleSheet.create({
   },
   fab: {
     position: "absolute",
-    right: spacing[6],
-    bottom: spacing[6],
+    bottom: 24,
+    right: 24,
     width: 56,
     height: 56,
     borderRadius: 28,
-    backgroundColor: colors.freelancer,
+    backgroundColor: colors.accent,
     justifyContent: "center",
     alignItems: "center",
-    elevation: 4,
-    shadowColor: colors.black,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 4,
+    elevation: 5,
+    shadowColor: colors.accent,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
   },
-  fabText: {
-    color: colors.white,
-    fontSize: 28,
-    fontWeight: "400",
-    marginTop: -2,
+  bellBadge: {
+    position: "absolute",
+    top: -2,
+    right: -2,
+    backgroundColor: colors.error,
+    borderRadius: 8,
+    minWidth: 16,
+    height: 16,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 3,
+  },
+  bellBadgeText: {
+    fontSize: 9,
+    fontWeight: "700",
   },
 });

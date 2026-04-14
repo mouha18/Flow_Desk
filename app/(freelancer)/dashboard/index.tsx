@@ -1,5 +1,7 @@
-import { View, StyleSheet, FlatList, TouchableOpacity, Text } from "react-native";
+import { View, StyleSheet, FlatList, TouchableOpacity } from "react-native";
 import { Stack, useRouter } from "expo-router";
+import { useQuery } from "convex/react";
+import { api } from "../../../convex/_generated/api";
 import { Heading, Typography, Screen, Card, SkeletonLoader } from "@/components/ui";
 import { ContractCard } from "@/components/contracts/ContractCard";
 import { useContracts } from "@/hooks/useContracts";
@@ -7,16 +9,19 @@ import { useTasks } from "@/hooks/useTasks";
 import { useFreelancerEarnings } from "@/hooks/useInvoice";
 import { formatCurrency } from "@/lib/formatting";
 import { colors } from "@/constants/colors";
-import { spacing } from "@/constants/spacing";
+import { spacing, borderRadius } from "@/constants/spacing";
+import { Bell, Plus, TrendingUp, Clock, FileText as FileTextIcon, CheckCircle } from "lucide-react-native";
 import type { Contract } from "@/types";
 
 export default function FreelancerDashboardScreen() {
   const router = useRouter();
   const { contracts, isLoading } = useContracts();
   const { totalEarnings, paidInvoicesCount, isLoading: earningsLoading } = useFreelancerEarnings();
+  const notificationUnreadCount = useQuery(api.notifications.unreadCount) ?? 0;
 
   const pendingContracts = (contracts as Contract[]).filter(c => c.status === "pending");
   const activeContracts = (contracts as Contract[]).filter(c => c.status === "active");
+  const finishedContracts = (contracts as Contract[]).filter(c => c.status === "finished");
 
   const handleContractPress = (contract: Contract) => {
     router.push(`/(freelancer)/contracts/${contract._id}`);
@@ -47,7 +52,21 @@ export default function FreelancerDashboardScreen() {
       <Stack.Screen
         options={{
           title: "Dashboard",
-          headerLargeTitle: true,
+          headerRight: () => (
+            <TouchableOpacity
+              onPress={() => router.push("/(freelancer)/notifications" as any)}
+              style={{ marginRight: 16, padding: 4, position: "relative" }}
+            >
+              <Bell size={22} color={colors.gray700} strokeWidth={2} />
+              {notificationUnreadCount > 0 && (
+                <View style={styles.bellBadge}>
+                  <Typography variant="caption" color={colors.white} style={styles.bellBadgeText}>
+                    {notificationUnreadCount > 9 ? "9+" : notificationUnreadCount}
+                  </Typography>
+                </View>
+              )}
+            </TouchableOpacity>
+          ),
         }}
       />
       <Screen style={styles.container} scrollable={false}>
@@ -63,39 +82,90 @@ export default function FreelancerDashboardScreen() {
           </View>
         ) : (
           <View style={styles.content}>
+            <TouchableOpacity
+              style={styles.quickAction}
+              onPress={() => router.push("/(freelancer)/contracts/new" as any)}
+            >
+              <Plus size={18} color={colors.white} strokeWidth={2.5} />
+              <Typography variant="bodySmall" color={colors.white} style={{ fontWeight: "600" }}>
+                New Contract
+              </Typography>
+            </TouchableOpacity>
+
             <View style={styles.statsRow}>
-              <Card style={styles.statCard}>
-                <Typography variant="caption" color={colors.gray500}>
-                  Active Contracts
-                </Typography>
-                <Heading level="h2" color={colors.freelancer}>
-                  {activeContracts.length}
-                </Heading>
-              </Card>
-              <Card style={styles.statCard}>
-                <Typography variant="caption" color={colors.gray500}>
-                  Pending
-                </Typography>
-                <Heading level="h2" color={colors.warning}>
-                  {pendingContracts.length}
-                </Heading>
-              </Card>
-              <Card style={styles.earningsCard}>
-                <Typography variant="caption" color={colors.gray500}>
-                  Total Earnings
-                </Typography>
-                <Heading level="h2" color={colors.success}>
-                  {formatCurrency(totalEarnings, "USD")}
-                </Heading>
-                <Typography variant="bodySmall" color={colors.gray500}>
-                  {paidInvoicesCount} paid invoice{paidInvoicesCount !== 1 ? "s" : ""}
-                </Typography>
-              </Card>
+              <View style={styles.statsRowInner}>
+                <TouchableOpacity
+                  style={styles.statCardTouchableHalf}
+                  onPress={() => router.push("/(freelancer)/contracts" as any)}
+                >
+                  <Card style={styles.statCardHalf}>
+                    <View style={styles.statCardContent}>
+                      <View style={[styles.statIconCircle, { backgroundColor: colors.freelancerLight }]}>
+                        <FileTextIcon size={16} color={colors.freelancer} strokeWidth={2} />
+                      </View>
+                      <View style={styles.statCardText}>
+                        <Typography variant="caption" color={colors.gray500}>Active</Typography>
+                        <Heading level="h3" color={colors.freelancer}>{activeContracts.length}</Heading>
+                      </View>
+                    </View>
+                  </Card>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.statCardTouchableHalf}
+                  onPress={() => router.push("/(freelancer)/contracts" as any)}
+                >
+                  <Card style={styles.statCardHalf}>
+                    <View style={styles.statCardContent}>
+                      <View style={[styles.statIconCircle, { backgroundColor: colors.warningLight }]}>
+                        <Clock size={16} color={colors.warning} strokeWidth={2} />
+                      </View>
+                      <View style={styles.statCardText}>
+                        <Typography variant="caption" color={colors.gray500}>Pending</Typography>
+                        <Heading level="h3" color={colors.warning}>{pendingContracts.length}</Heading>
+                      </View>
+                    </View>
+                  </Card>
+                </TouchableOpacity>
+              </View>
+              <View style={styles.statsRowInner}>
+                <TouchableOpacity
+                  style={styles.statCardTouchableHalf}
+                  onPress={() => router.push("/(freelancer)/contracts" as any)}
+                >
+                  <Card style={styles.statCardHalf}>
+                    <View style={styles.statCardContent}>
+                      <View style={[styles.statIconCircle, { backgroundColor: colors.successLight }]}>
+                        <CheckCircle size={16} color={colors.success} strokeWidth={2} />
+                      </View>
+                      <View style={styles.statCardText}>
+                        <Typography variant="caption" color={colors.gray500}>Finished</Typography>
+                        <Heading level="h3" color={colors.success}>{finishedContracts.length}</Heading>
+                      </View>
+                    </View>
+                  </Card>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.statCardTouchableHalf}
+                  onPress={() => router.push("/(freelancer)/invoices" as any)}
+                >
+                  <Card style={styles.earningsCardHalf}>
+                    <View style={styles.statCardContent}>
+                      <View style={[styles.statIconCircle, { backgroundColor: colors.secondaryLightBg }]}>
+                        <TrendingUp size={16} color={colors.primary} strokeWidth={2} />
+                      </View>
+                      <View style={styles.statCardText}>
+                        <Typography variant="caption" color={colors.gray500}>Total Earnings</Typography>
+                        <Heading level="h3" color={colors.success}>{formatCurrency(totalEarnings, "USD")}</Heading>
+                      </View>
+                    </View>
+                  </Card>
+                </TouchableOpacity>
+              </View>
             </View>
 
             {activeContracts.length > 0 && (
               <View style={styles.progressSection}>
-                <Text style={styles.sectionTitle}>Active Contracts</Text>
+                <Heading level="h4" style={styles.sectionTitle}>Active Contracts</Heading>
                 {activeContracts.slice(0, 3).map((contract) => (
                   <TouchableOpacity
                     key={contract._id}
@@ -103,8 +173,12 @@ export default function FreelancerDashboardScreen() {
                     onPress={() => router.push(`/(freelancer)/contracts/${contract._id}`)}
                   >
                     <View style={styles.progressHeader}>
-                      <Text style={styles.progressTitle} numberOfLines={1}>{contract.title}</Text>
-                      <Text style={styles.progressPercent}>{contract.completionPercent}%</Text>
+                      <Typography variant="bodySmall" color={colors.gray700} style={styles.progressTitle} numberOfLines={1}>
+                        {contract.title}
+                      </Typography>
+                      <Typography variant="bodySmall" color={colors.primary} style={styles.progressPercent}>
+                        {contract.completionPercent}%
+                      </Typography>
                     </View>
                     <View style={styles.progressBar}>
                       <View
@@ -117,7 +191,9 @@ export default function FreelancerDashboardScreen() {
                         ]}
                       />
                     </View>
-                    <Text style={styles.progressClient}>{contract.clientName ?? contract.clientEmail}</Text>
+                    <Typography variant="caption" color={colors.gray500}>
+                      {contract.clientDisplayName ?? contract.clientEmail ?? "Client"}
+                    </Typography>
                   </TouchableOpacity>
                 ))}
               </View>
@@ -142,7 +218,7 @@ export default function FreelancerDashboardScreen() {
             {contracts.length === 0 ? (
               <Card style={styles.emptyState}>
                 <View style={styles.emptyIcon}>
-                  <Typography style={styles.emptyIconText}>+</Typography>
+                  <Plus size={32} color={colors.gray400} strokeWidth={2} />
                 </View>
                 <Heading level="h3">No contracts yet</Heading>
                 <Typography variant="bodySmall" color={colors.gray500} style={styles.emptyText}>
@@ -184,25 +260,82 @@ const styles = StyleSheet.create({
     gap: spacing[4],
   },
   statsRow: {
+    flexDirection: "column",
+    gap: spacing[3],
+  },
+  statCardTouchable: {
+    width: "100%",
+  },
+  statCard: {
+    width: "100%",
+  },
+  earningsCard: {
+    width: "100%",
+  },
+  statsRowInner: {
     flexDirection: "row",
-    gap: spacing[4],
+    gap: spacing[3],
+  },
+  statCardTouchableHalf: {
+    flex: 1,
+  },
+  statCardHalf: {
+    width: "100%",
+  },
+  earningsCardHalf: {
+    flex: 1,
+  },
+  statCardContent: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing[3],
+  },
+  statCardText: {
+    flex: 1,
   },
   statCardSkeleton: {
-    flex: 1,
+    width: "100%",
   },
   earningsCardSkeleton: {
-    flex: 1,
+    width: "100%",
   },
   listSkeleton: {
     marginTop: spacing[2],
   },
-  statCard: {
-    flex: 1,
+  statIconCircle: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    justifyContent: "center",
     alignItems: "center",
+    marginBottom: spacing[2],
   },
-  earningsCard: {
-    flex: 1,
+  quickAction: {
+    flexDirection: "row",
     alignItems: "center",
+    backgroundColor: colors.accent,
+    paddingVertical: spacing[2],
+    paddingHorizontal: spacing[4],
+    borderRadius: borderRadius.lg,
+    gap: spacing[2],
+    alignSelf: "flex-start",
+    marginBottom: spacing[2],
+  },
+  bellBadge: {
+    position: "absolute",
+    top: -2,
+    right: -2,
+    backgroundColor: colors.error,
+    borderRadius: 8,
+    minWidth: 16,
+    height: 16,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 3,
+  },
+  bellBadgeText: {
+    fontSize: 9,
+    fontWeight: "700",
   },
   section: {
     marginTop: spacing[2],
@@ -228,55 +361,43 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginBottom: spacing[4],
   },
-  emptyIconText: {
-    fontSize: 32,
-    color: colors.gray400,
-  },
   emptyText: {
     marginTop: spacing[2],
     textAlign: "center",
   },
   // Progress section styles
   progressSection: {
-    marginTop: spacing[6],
+    marginTop: spacing[4],
   },
   progressCard: {
-    backgroundColor: colors.surface,
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 12,
+    backgroundColor: colors.white,
+    borderRadius: spacing[3],
+    padding: spacing[4],
+    marginBottom: spacing[3],
   },
   progressHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: 8,
+    marginBottom: spacing[2],
   },
   progressTitle: {
-    fontSize: 14,
     fontWeight: "600",
-    color: colors.text,
     flex: 1,
-    marginRight: 8,
+    marginRight: spacing[2],
   },
   progressPercent: {
-    fontSize: 14,
     fontWeight: "700",
-    color: colors.primary,
   },
   progressBar: {
     height: 6,
     backgroundColor: colors.border,
     borderRadius: 3,
     overflow: "hidden",
-    marginBottom: 6,
+    marginBottom: spacing[1],
   },
   progressFill: {
     height: "100%",
     borderRadius: 3,
-  },
-  progressClient: {
-    fontSize: 12,
-    color: colors.textSecondary,
   },
 });

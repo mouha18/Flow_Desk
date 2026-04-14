@@ -86,13 +86,15 @@ export const listByFreelancer = query({
       .collect();
 
     // Get all invoices for these contracts
+    // Only include invoices where escrow has been released (actual earnings)
     const invoices = [];
     for (const contract of contracts) {
       const invoice = await ctx.db
         .query("invoices")
         .withIndex("by_contract", (q) => q.eq("contractId", contract._id))
         .first();
-      if (invoice) {
+      // Only include if escrow is released (matches getFreelancerEarnings logic)
+      if (invoice && contract.escrowStatus === "released") {
         invoices.push(invoice);
       }
     }
@@ -450,9 +452,9 @@ export const simulatePayment = mutation({
     });
 
     // Handle escrow based on payment timing
-    // For "Pay Now" contracts: Set escrowStatus to "held" (money held)
-    // For "Pay Later" contracts: Set escrowStatus to "delivered" (awaiting client satisfaction)
-    const escrowStatus = contract.paymentTiming === "now" ? "held" : "delivered";
+    // Money is always held in escrow until the freelancer delivers work
+    // For "Pay Later" contracts: Set escrowStatus to "held" (money held until delivery)
+    const escrowStatus = "held";
     
     // For Pay Later, copy deliverables from invoice to contract so client can see them
     const updates: Record<string, any> = { escrowStatus };

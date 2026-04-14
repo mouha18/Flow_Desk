@@ -112,7 +112,7 @@ export default function ClientInvoiceScreen() {
               {contract.title}
             </Typography>
             <Typography variant="bodySmall" color={colors.gray500}>
-              From: {contract.clientName || "Freelancer"}
+              From: {contract.freelancerDisplayName || "Freelancer"}
             </Typography>
           </Card>
 
@@ -170,7 +170,7 @@ export default function ClientInvoiceScreen() {
                       variant="bodySmall"
                       color={isPaid ? colors.success : isSent ? colors.warning : colors.gray600}
                     >
-                      {invoiceStatus?.charAt(0).toUpperCase() + invoiceStatus?.slice(1)}
+                      {invoiceStatus ? invoiceStatus.charAt(0).toUpperCase() + invoiceStatus.slice(1) : 'Draft'}
                     </Typography>
                   </View>
                 </View>
@@ -392,7 +392,7 @@ const styles = StyleSheet.create({
     margin: spacing[4],
     marginTop: spacing[2],
     marginBottom: spacing[2],
-    backgroundColor: colors.primary + "08",
+    backgroundColor: colors.accentLight,
   },
   deliverableLinkContainer: {
     marginTop: spacing[2],

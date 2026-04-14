@@ -1,9 +1,11 @@
 import React from "react";
-import { View, Text, StyleSheet, ViewStyle } from "react-native";
+import { View, StyleSheet, ViewStyle } from "react-native";
 import { colors } from "../../constants/colors";
 import { fontSizes, fontWeights } from "../../constants/typography";
 import { borderRadius, spacing } from "../../constants/spacing";
 import { Message } from "../../types/index";
+import { Avatar } from "../ui/avatar";
+import { Typography } from "../ui/typography";
 
 interface ChatBubbleProps {
   message: Message;
@@ -31,7 +33,7 @@ export function ChatBubble({
     >
       {!isOwnMessage && (
         <View style={styles.avatar}>
-          <Text style={styles.avatarText}>👤</Text>
+          <Avatar name="U" size="sm" />
         </View>
       )}
 
@@ -41,17 +43,25 @@ export function ChatBubble({
           isOwnMessage ? styles.bubbleOwn : styles.bubbleOther,
         ]}
       >
-        <Text style={[styles.content, isOwnMessage && styles.contentOwn]}>
+        <Typography
+          variant="body"
+          color={isOwnMessage ? colors.white : colors.gray900}
+          style={styles.content}
+        >
           {message.content}
-        </Text>
-        <Text style={[styles.timestamp, isOwnMessage && styles.timestampOwn]}>
+        </Typography>
+        <Typography
+          variant="caption"
+          color={isOwnMessage ? (colors.white + "80") : colors.gray500}
+          style={styles.timestamp}
+        >
           {formatTimestamp(message._creationTime)}
-        </Text>
+        </Typography>
       </View>
 
       {isOwnMessage && (
         <View style={styles.avatar}>
-          <Text style={styles.avatarText}>✓</Text>
+          <Avatar name="Me" size="sm" variant="freelancer" />
         </View>
       )}
     </View>
@@ -74,13 +84,9 @@ const styles = StyleSheet.create({
     width: 32,
     height: 32,
     borderRadius: borderRadius.full,
-    backgroundColor: colors.gray100,
     alignItems: "center",
     justifyContent: "center",
     marginHorizontal: spacing[2],
-  },
-  avatarText: {
-    fontSize: fontSizes.sm,
   },
   bubble: {
     maxWidth: "70%",
@@ -89,7 +95,7 @@ const styles = StyleSheet.create({
     borderRadius: borderRadius.xl,
   },
   bubbleOwn: {
-    backgroundColor: colors.primary,
+    backgroundColor: colors.accent,
     borderBottomRightRadius: borderRadius.sm,
   },
   bubbleOther: {
@@ -97,20 +103,10 @@ const styles = StyleSheet.create({
     borderBottomLeftRadius: borderRadius.sm,
   },
   content: {
-    fontSize: fontSizes.base,
-    color: colors.gray900,
     lineHeight: fontSizes.base * 1.5,
   },
-  contentOwn: {
-    color: colors.white,
-  },
   timestamp: {
-    fontSize: fontSizes.xs,
-    color: colors.gray500,
     marginTop: spacing[1],
     alignSelf: "flex-end",
-  },
-  timestampOwn: {
-    color: colors.white + "80",
   },
 });

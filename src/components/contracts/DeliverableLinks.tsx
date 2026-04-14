@@ -98,7 +98,7 @@ export function DeliverableLinks({ contractId, deliverables, editable = true }: 
               {deliverable.name}
             </Typography>
             <Pressable onPress={() => handleLinkPress(deliverable.url)}>
-              <Typography variant="bodySmall" color={colors.primary} style={styles.deliverableUrl}>
+              <Typography variant="bodySmall" color={colors.accent} style={styles.deliverableUrl}>
                 {deliverable.url}
               </Typography>
             </Pressable>
@@ -121,7 +121,7 @@ export function DeliverableLinks({ contractId, deliverables, editable = true }: 
             placeholder="Name (e.g., GitHub Repository)"
             value={name}
             onChangeText={setName}
-            style={styles.input}
+            containerStyle={styles.input}
           />
           <Input
             placeholder="URL (e.g., https://github.com/...)"
@@ -129,7 +129,7 @@ export function DeliverableLinks({ contractId, deliverables, editable = true }: 
             onChangeText={setUrl}
             keyboardType="url"
             autoCapitalize="none"
-            style={styles.input}
+            containerStyle={styles.input}
           />
           <Button
             title={isAdding ? "Adding..." : "Add Deliverable"}

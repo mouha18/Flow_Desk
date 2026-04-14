@@ -269,3 +269,26 @@ export const setHourlyRate = mutation({
     return null;
   },
 });
+
+// Delete a task
+export const deleteTask = mutation({
+  args: { taskId: v.id("tasks") },
+  handler: async (ctx, args) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) throw new ConvexError("Not authenticated");
+
+
+    const task = await ctx.db.get("tasks", args.taskId);
+    if (!task) throw new ConvexError("Task not found");
+
+    // Verify user is the freelancer for this contract
+    const contract = await ctx.db.get("contracts", task.contractId);
+    if (!contract) throw new ConvexError("Contract not found");
+    if (contract.freelancerId !== userId) {
+      throw new ConvexError("Only the contract freelancer can delete tasks");
+    }
+
+    await ctx.db.delete(args.taskId);
+    return null;
+  },
+});

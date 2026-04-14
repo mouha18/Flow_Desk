@@ -1,8 +1,8 @@
 import React from "react";
-import { View, Text, StyleSheet, ViewStyle } from "react-native";
+import { View, StyleSheet, ViewStyle } from "react-native";
 import { colors } from "../../constants/colors";
-import { fontSizes, fontWeights } from "../../constants/typography";
 import { borderRadius, spacing } from "../../constants/spacing";
+import { Typography } from "../ui/typography";
 
 interface CompletionBarProps {
   percent: number;
@@ -21,8 +21,12 @@ export function CompletionBar({
     <View style={[styles.container, style]}>
       {showLabel && (
         <View style={styles.labelRow}>
-          <Text style={styles.label}>Completion</Text>
-          <Text style={styles.value}>{clampedPercent}%</Text>
+          <Typography variant="label" color={colors.gray700}>
+            Completion
+          </Typography>
+          <Typography variant="label" color={colors.accent} style={styles.value}>
+            {clampedPercent}%
+          </Typography>
         </View>
       )}
       <View style={styles.progressBar}>
@@ -48,15 +52,8 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginBottom: spacing[2],
   },
-  label: {
-    fontSize: fontSizes.sm,
-    fontWeight: fontWeights.medium,
-    color: colors.gray700,
-  },
   value: {
-    fontSize: fontSizes.sm,
-    fontWeight: fontWeights.bold,
-    color: colors.primary,
+    fontWeight: "600",
   },
   progressBar: {
     height: 8,
@@ -66,7 +63,7 @@ const styles = StyleSheet.create({
   },
   progressFill: {
     height: "100%",
-    backgroundColor: colors.primary,
+    backgroundColor: colors.accent,
     borderRadius: borderRadius.full,
   },
   progressFillComplete: {

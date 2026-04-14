@@ -3,15 +3,16 @@ import {
   FlatList,
   StyleSheet,
   View,
-  Text,
   ViewStyle,
   ListRenderItem,
   RefreshControl,
 } from "react-native";
+import { Bell } from "lucide-react-native";
 import { colors } from "../../constants/colors";
-import { fontSizes, fontWeights } from "../../constants/typography";
+import { fontWeights } from "../../constants/typography";
 import { spacing } from "../../constants/spacing";
 import { Notification } from "../../types/index";
+import { Typography } from "../ui/typography";
 import { NotificationItem } from "./NotificationItem";
 
 interface NotificationListProps {
@@ -41,11 +42,15 @@ export function NotificationList({
   if (notifications.length === 0) {
     return (
       <View style={[styles.emptyContainer, style]}>
-        <Text style={styles.emptyIcon}>🔔</Text>
-        <Text style={styles.emptyTitle}>No notifications</Text>
-        <Text style={styles.emptySubtitle}>
+        <View style={styles.emptyIconCircle}>
+          <Bell size={32} color={colors.gray400} strokeWidth={1.5} />
+        </View>
+        <Typography variant="body" color={colors.gray700} style={styles.emptyTitle}>
+          No notifications
+        </Typography>
+        <Typography variant="bodySmall" color={colors.gray500} style={styles.emptySubtitle}>
           You're all caught up! New notifications will appear here.
-        </Text>
+        </Typography>
       </View>
     );
   }
@@ -62,7 +67,7 @@ export function NotificationList({
         <RefreshControl
           refreshing={refreshing}
           onRefresh={onRefresh ?? (() => {})}
-          tintColor={colors.primary}
+          tintColor={colors.accent}
         />
       }
       ItemSeparatorComponent={() => <View style={styles.separator} />}
@@ -88,20 +93,20 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing[8],
     backgroundColor: colors.white,
   },
-  emptyIcon: {
-    fontSize: 64,
+  emptyIconCircle: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: colors.gray100,
+    alignItems: "center",
+    justifyContent: "center",
     marginBottom: spacing[4],
   },
   emptyTitle: {
-    fontSize: fontSizes.xl,
-    fontWeight: fontWeights.semibold,
-    color: colors.gray700,
+    fontWeight: fontWeights.semibold as any,
     marginBottom: spacing[2],
   },
   emptySubtitle: {
-    fontSize: fontSizes.base,
-    color: colors.gray500,
     textAlign: "center",
-    lineHeight: fontSizes.base * 1.5,
   },
 });

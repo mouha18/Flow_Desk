@@ -1,8 +1,10 @@
 import React from "react";
-import { View, Text, StyleSheet, Pressable, ViewStyle } from "react-native";
+import { View, StyleSheet, Pressable, ViewStyle } from "react-native";
+import { Play, Square } from "lucide-react-native";
 import { colors } from "../../constants/colors";
 import { fontSizes, fontWeights } from "../../constants/typography";
 import { borderRadius, spacing } from "../../constants/spacing";
+import { Typography } from "../ui/typography";
 
 interface TimerControlProps {
   isRunning: boolean;
@@ -35,11 +37,19 @@ export function TimerControl({
       onPress={handlePress}
     >
       <View style={[styles.icon, isRunning && styles.iconActive]}>
-        <Text style={styles.iconText}>{isRunning ? "⏹" : "▶"}</Text>
+        {isRunning ? (
+          <Square size={16} color={colors.error} strokeWidth={2} />
+        ) : (
+          <Play size={16} color={colors.accent} strokeWidth={2} />
+        )}
       </View>
-      <Text style={[styles.label, isRunning && styles.labelActive]}>
+      <Typography
+        variant="body"
+        color={isRunning ? colors.error : colors.accent}
+        style={styles.label}
+      >
         {isRunning ? "Stop Timer" : "Start Timer"}
-      </Text>
+      </Typography>
       {isRunning && (
         <View style={styles.pulseIndicator}>
           <View style={styles.pulseDot} />
@@ -60,10 +70,10 @@ const styles = StyleSheet.create({
   },
   containerInactive: {
     backgroundColor: colors.white,
-    borderColor: colors.primary,
+    borderColor: colors.accent,
   },
   containerActive: {
-    backgroundColor: colors.error + "10",
+    backgroundColor: colors.errorLight,
     borderColor: colors.error,
   },
   icon: {
@@ -75,17 +85,10 @@ const styles = StyleSheet.create({
     marginRight: spacing[3],
   },
   iconActive: {
-    backgroundColor: colors.error + "20",
-  },
-  iconText: {
-    fontSize: fontSizes.lg,
+    backgroundColor: colors.errorLight,
   },
   label: {
-    fontSize: fontSizes.base,
-    fontWeight: fontWeights.semibold,
-  },
-  labelActive: {
-    color: colors.error,
+    fontWeight: fontWeights.semibold as any,
   },
   pulseIndicator: {
     marginLeft: spacing[3],

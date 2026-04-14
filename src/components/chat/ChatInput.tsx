@@ -4,11 +4,11 @@ import {
   TextInput,
   StyleSheet,
   Pressable,
-  Text,
   ViewStyle,
   KeyboardAvoidingView,
   Platform,
 } from "react-native";
+import { Send } from "lucide-react-native";
 import { colors } from "../../constants/colors";
 import { fontSizes, fontWeights } from "../../constants/typography";
 import { borderRadius, spacing } from "../../constants/spacing";
@@ -62,14 +62,11 @@ export function ChatInput({
           onPress={handleSend}
           disabled={!canSend}
         >
-          <Text
-            style={[
-              styles.sendIcon,
-              canSend && styles.sendIconActive,
-            ]}
-          >
-            ➤
-          </Text>
+          <Send
+            size={20}
+            color={canSend ? colors.white : colors.gray500}
+            strokeWidth={2}
+          />
         </Pressable>
       </View>
     </KeyboardAvoidingView>
@@ -94,6 +91,8 @@ const styles = StyleSheet.create({
     paddingVertical: spacing[2],
     marginRight: spacing[3],
     maxHeight: 100,
+    borderWidth: 1,
+    borderColor: colors.gray200,
   },
   input: {
     fontSize: fontSizes.base,
@@ -112,13 +111,6 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   sendButtonActive: {
-    backgroundColor: colors.primary,
-  },
-  sendIcon: {
-    fontSize: fontSizes.xl,
-    color: colors.gray500,
-  },
-  sendIconActive: {
-    color: colors.white,
+    backgroundColor: colors.accent,
   },
 });

@@ -1,10 +1,10 @@
 import React, { useRef, useEffect } from "react";
-import { FlatList, StyleSheet, View, Text, ViewStyle, ListRenderItem } from "react-native";
+import { FlatList, StyleSheet, View, ViewStyle, ListRenderItem } from "react-native";
 import { colors } from "../../constants/colors";
-import { fontSizes, fontWeights } from "../../constants/typography";
 import { spacing } from "../../constants/spacing";
 import { Message } from "../../types/index";
 import { ChatBubble } from "./ChatBubble";
+import { EmptyState } from "../ui/empty-state";
 
 interface ChatListProps {
   messages: Message[];
@@ -51,13 +51,11 @@ export function ChatList({
         flatListRef.current?.scrollToEnd({ animated: false });
       }}
       ListEmptyComponent={
-        <View style={styles.emptyState}>
-          <Text style={styles.emptyIcon}>💬</Text>
-          <Text style={styles.emptyTitle}>No messages yet</Text>
-          <Text style={styles.emptySubtitle}>
-            Start the conversation by sending a message
-          </Text>
-        </View>
+        <EmptyState
+          title="No messages yet"
+          subtitle="Start the conversation by sending a message"
+          variant="chat"
+        />
       }
     />
   );
@@ -66,7 +64,7 @@ export function ChatList({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.gray50,
+    backgroundColor: colors.white,
   },
   contentContainer: {
     paddingHorizontal: spacing[4],
@@ -76,27 +74,5 @@ const styles = StyleSheet.create({
   },
   bubble: {
     marginBottom: spacing[2],
-  },
-  emptyState: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    paddingVertical: spacing[10],
-  },
-  emptyIcon: {
-    fontSize: 48,
-    marginBottom: spacing[4],
-  },
-  emptyTitle: {
-    fontSize: fontSizes.lg,
-    fontWeight: fontWeights.semibold,
-    color: colors.gray700,
-    marginBottom: spacing[2],
-  },
-  emptySubtitle: {
-    fontSize: fontSizes.sm,
-    color: colors.gray500,
-    textAlign: "center",
-    paddingHorizontal: spacing[8],
   },
 });

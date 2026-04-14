@@ -117,7 +117,7 @@ export default function FreelancerContractDetailScreen() {
               Client
             </Typography>
             <Typography variant="body" style={styles.detailValue}>
-              {contract.clientName || contract.clientPseudo || contract.clientEmail}
+              {contract.clientDisplayName || contract.clientName || contract.clientPseudo || contract.clientEmail}
             </Typography>
 
             <Typography variant="label" color={colors.gray500} style={styles.detailLabel}>
@@ -233,5 +233,8 @@ const styles = StyleSheet.create({
   },
   actionButton: {
     flex: 1,
+  },
+  fullButton: {
+    width: '100%',
   },
 });

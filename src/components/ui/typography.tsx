@@ -51,6 +51,7 @@ interface TypographyProps {
   color?: string;
   style?: TextStyle;
   selectable?: boolean;
+  numberOfLines?: number;
 }
 
 const textStyles: Record<TextVariant, TextStyle> = {
@@ -82,11 +83,13 @@ export function Typography({
   color = colors.gray700,
   style,
   selectable = false,
+  numberOfLines,
 }: TypographyProps) {
   return (
     <RNText
       style={[textStyles[variant], { color }, style]}
       selectable={selectable}
+      numberOfLines={numberOfLines}
     >
       {children}
     </RNText>

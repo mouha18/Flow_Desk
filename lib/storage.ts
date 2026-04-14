@@ -4,6 +4,7 @@ import type { UserRole } from "../src/types";
 const KEYS = {
   USER_ROLE: "user_role",
   LAST_CONTRACT_ID: "last_contract_id",
+  HAS_SEEN_ONBOARDING: "hasSeenOnboarding",
 } as const;
 
 export const storage = {
@@ -32,6 +33,24 @@ export const storage = {
 
   async clearLastContractId(): Promise<void> {
     await AsyncStorage.removeItem(KEYS.LAST_CONTRACT_ID);
+  },
+
+  // Onboarding flag
+  async getHasSeenOnboarding(): Promise<boolean> {
+    try {
+      const value = await AsyncStorage.getItem(KEYS.HAS_SEEN_ONBOARDING);
+      return value === "true";
+    } catch {
+      return false;
+    }
+  },
+
+  async setHasSeenOnboarding(): Promise<void> {
+    try {
+      await AsyncStorage.setItem(KEYS.HAS_SEEN_ONBOARDING, "true");
+    } catch (error) {
+      console.error("Failed to set onboarding flag:", error);
+    }
   },
 
   // Clear all storage

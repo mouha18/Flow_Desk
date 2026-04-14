@@ -1,6 +1,6 @@
-import { StyleSheet, View, Text, RefreshControl } from "react-native";
+import { StyleSheet, View } from "react-native";
 import { Stack } from "expo-router";
-import { Screen, Button } from "@/components/ui";
+import { Typography, Screen, Button, Icon } from "@/components/ui";
 import { NotificationList } from "@/components/notifications/NotificationList";
 import { useNotifications } from "@/hooks/useNotifications";
 import { colors } from "@/constants/colors";
@@ -19,11 +19,11 @@ export default function ClientNotificationsScreen() {
 
   const renderEmptyState = () => (
     <View style={styles.emptyState}>
-      <Text style={styles.emptyIcon}>🔔</Text>
-      <Text style={styles.emptyTitle}>No notifications</Text>
-      <Text style={styles.emptySubtitle}>
+      <Icon name="bell" size="xl" color={colors.gray300} style={styles.emptyIcon} />
+      <Typography variant="body" style={styles.emptyTitle}>No notifications</Typography>
+      <Typography variant="bodySmall" color={colors.gray500} style={styles.emptySubtitle}>
         You're all caught up
-      </Text>
+      </Typography>
     </View>
   );
 
@@ -91,19 +91,15 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   emptyIcon: {
-    fontSize: 48,
     marginBottom: spacing[3],
   },
   emptyTitle: {
-    fontSize: 18,
-    fontWeight: "600",
-    color: colors.textPrimary,
+    fontWeight: "600" as const,
+    color: colors.gray600,
     marginBottom: spacing[2],
   },
   emptySubtitle: {
-    fontSize: 14,
-    color: colors.textSecondary,
-    textAlign: "center",
+    textAlign: "center" as const,
   },
   list: {
     flex: 1,

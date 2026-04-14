@@ -1,5 +1,8 @@
 import React, { Component, ReactNode } from "react";
 import { View, Text, TouchableOpacity, StyleSheet } from "react-native";
+import { colors } from "@/constants/colors";
+import { spacing } from "@/constants/spacing";
+import { fontSizes } from "@/constants/typography";
 
 interface Props {
   children: ReactNode;
@@ -48,11 +51,11 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    padding: 32,
+    padding: spacing[8],
   },
-  icon: { fontSize: 48, marginBottom: 16 },
-  title: { fontSize: 18, fontWeight: "600", color: "#1a1a1a", marginBottom: 8 },
-  subtitle: { fontSize: 14, color: "#666", textAlign: "center", marginBottom: 24 },
-  button: { backgroundColor: "#007AFF", paddingHorizontal: 24, paddingVertical: 12, borderRadius: 8 },
-  buttonText: { color: "#fff", fontSize: 16, fontWeight: "600" },
+  icon: { fontSize: 48, marginBottom: spacing[4] },
+  title: { fontSize: fontSizes.lg, fontWeight: "600", color: colors.gray900, marginBottom: spacing[2] },
+  subtitle: { fontSize: fontSizes.sm, color: colors.gray500, textAlign: "center", marginBottom: spacing[6] },
+  button: { backgroundColor: colors.primary, paddingHorizontal: spacing[6], paddingVertical: spacing[3], borderRadius: spacing[2] },
+  buttonText: { color: colors.white, fontSize: fontSizes.base, fontWeight: "600" },
 });

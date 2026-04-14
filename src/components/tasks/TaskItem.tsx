@@ -1,11 +1,13 @@
 import React, { useState, useEffect, useRef } from "react";
-import { View, Text, StyleSheet, Pressable, ViewStyle } from "react-native";
+import { View, StyleSheet, Pressable, ViewStyle } from "react-native";
 import * as Haptics from "expo-haptics";
+import { Clock } from "lucide-react-native";
 import { colors } from "../../constants/colors";
 import { fontSizes, fontWeights } from "../../constants/typography";
 import { borderRadius, spacing } from "../../constants/spacing";
 import { Task, TaskStatus, Contract } from "../../types/index";
 import { Badge } from "../ui/badge";
+import { Typography } from "../ui/typography";
 
 interface TaskItemProps {
   task: Task;
@@ -17,9 +19,9 @@ interface TaskItemProps {
   style?: ViewStyle;
 }
 
-const statusBadgeVariant: Record<TaskStatus, "default" | "success" | "warning"> = {
+const statusBadgeVariant: Record<TaskStatus, "default" | "success" | "warning" | "accent"> = {
   pending: "warning",
-  running: "default",
+  running: "accent",
   completed: "success",
 };
 
@@ -105,9 +107,14 @@ export function TaskItem({ task, contract, onPress, onStop, onStart, onComplete,
     >
       <View style={styles.content}>
         <View style={styles.header}>
-          <Text style={styles.title} numberOfLines={1}>
+          <Typography
+            variant="body"
+            color={colors.gray900}
+            style={styles.title}
+            numberOfLines={1}
+          >
             {task.title}
-          </Text>
+          </Typography>
           <Badge
             label={statusLabels[task.status]}
             variant={statusBadgeVariant[task.status]}
@@ -119,25 +126,33 @@ export function TaskItem({ task, contract, onPress, onStop, onStart, onComplete,
             <View style={styles.footer}>
               <View style={styles.timer}>
                 <View style={[styles.timerIcon, isRunning && styles.timerIconActive]}>
-                  <Text style={styles.timerIconText}>⏱</Text>
+                  <Clock size={12} color={isRunning ? colors.warning : colors.gray500} strokeWidth={2} />
                 </View>
-                <Text style={[styles.timerText, isRunning && styles.timerTextActive]}>
+                <Typography
+                  variant="bodySmall"
+                  color={isRunning ? colors.warning : colors.gray600}
+                  style={styles.timerText}
+                >
                   {formatTime(liveTime)}
-                </Text>
+                </Typography>
               </View>
 
               {contract.hourlyRate != null && (
-                <Text style={styles.rate}>
+                <Typography variant="bodySmall" color={colors.gray500} style={styles.rate}>
                   ${contract.hourlyRate.toFixed(2)}/hr
-                </Text>
+                </Typography>
               )}
             </View>
 
             {isPending && (
-              <Text style={styles.hint}>Tap to start timer</Text>
+              <Typography variant="caption" color={colors.gray400} style={styles.hint}>
+                Tap to start timer
+              </Typography>
             )}
             {isRunning && (
-              <Text style={styles.hintRunning}>Tap to stop & complete</Text>
+              <Typography variant="caption" color={colors.warning} style={styles.hint}>
+                Tap to stop & complete
+              </Typography>
             )}
           </>
         )}
@@ -175,9 +190,7 @@ const styles = StyleSheet.create({
     marginBottom: spacing[3],
   },
   title: {
-    fontSize: fontSizes.base,
-    fontWeight: fontWeights.medium,
-    color: colors.gray900,
+    fontWeight: fontWeights.medium as any,
     flex: 1,
     marginRight: spacing[3],
   },
@@ -200,33 +213,16 @@ const styles = StyleSheet.create({
     marginRight: spacing[2],
   },
   timerIconActive: {
-    backgroundColor: colors.warning + "20",
-  },
-  timerIconText: {
-    fontSize: fontSizes.xs,
+    backgroundColor: colors.warningLight,
   },
   timerText: {
-    fontSize: fontSizes.sm,
-    fontWeight: fontWeights.medium,
     fontFamily: "monospace",
-    color: colors.gray600,
-  },
-  timerTextActive: {
-    color: colors.warning,
+    fontWeight: fontWeights.medium as any,
   },
   rate: {
-    fontSize: fontSizes.sm,
-    fontWeight: fontWeights.medium,
-    color: colors.gray500,
+    fontWeight: fontWeights.medium as any,
   },
   hint: {
-    fontSize: fontSizes.xs,
-    color: colors.gray400,
-    marginTop: spacing[2],
-  },
-  hintRunning: {
-    fontSize: fontSizes.xs,
-    color: colors.warning,
     marginTop: spacing[2],
   },
   indicator: {

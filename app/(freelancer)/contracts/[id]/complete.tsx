@@ -96,7 +96,7 @@ export default function CompleteContractScreen() {
                       <Typography variant="bodySmall" style={styles.deliverableName}>
                         {deliverable.name}
                       </Typography>
-                      <Typography variant="bodySmall" color={colors.primary}>
+                      <Typography variant="bodySmall" color={colors.accent}>
                         {deliverable.url}
                       </Typography>
                     </View>

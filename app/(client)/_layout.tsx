@@ -1,86 +1,130 @@
-import { Drawer } from "expo-router/drawer";
+import { Tabs } from "expo-router/tabs";
 import { useAuth } from "@/hooks/use-auth";
 import { Redirect } from "expo-router";
-import { useContracts } from "@/hooks/useContracts";
-import { useUnreadCountsByContract } from "@/hooks/useUnreadCounts";
-import { DrawerContent } from "@/components/drawer/DrawerContent";
 import { useQuery } from "convex/react";
 import { api } from "../../convex/_generated/api";
-import { useAuthActions } from "@convex-dev/auth/react";
+import { useUnreadCountsByContract } from "@/hooks/useUnreadCounts";
+import { colors } from "@/constants/colors";
+import { LayoutDashboard, FileText, MessageCircle, User } from "lucide-react-native";
 
 export default function ClientLayout() {
   const { isLoading, isAuthenticated, userRole, user } = useAuth();
-  const { contracts } = useContracts();
-  const unreadCounts = useUnreadCountsByContract();
   const notificationUnreadCount = useQuery(api.notifications.unreadCount) ?? 0;
-  const { signOut } = useAuthActions();
+  const unreadCounts = useUnreadCountsByContract();
+  const totalUnreadMessages = Object.values(unreadCounts).reduce((sum, count) => sum + count, 0);
 
-  // Show loading while auth state is being determined
   if (isLoading || user === undefined) {
     return null;
   }
 
-  // Redirect if not authenticated or not a client
   if (!isAuthenticated || userRole !== "client") {
     return <Redirect href="/(auth)/login" />;
   }
 
   return (
-    <Drawer
-      drawerContent={() => <DrawerContent contracts={contracts} userRole="client" unreadCounts={unreadCounts} notificationUnreadCount={notificationUnreadCount} onSignOut={() => signOut()} />}
+    <Tabs
+      screenOptions={{
+        tabBarActiveTintColor: colors.primary,
+        tabBarInactiveTintColor: colors.gray400,
+        tabBarStyle: {
+          backgroundColor: colors.white,
+          borderTopColor: colors.gray200,
+          borderTopWidth: 1,
+          height: 60,
+          paddingBottom: 8,
+          paddingTop: 8,
+        },
+        tabBarLabelStyle: {
+          fontSize: 11,
+          fontWeight: "500",
+        },
+        headerShown: true,
+        headerStyle: {
+          backgroundColor: colors.white,
+        },
+        headerTitleStyle: {
+          color: colors.gray900,
+          fontWeight: "600",
+          fontSize: 18,
+        },
+        headerShadowVisible: false,
+        headerTintColor: colors.gray900,
+      }}
     >
-      <Drawer.Screen
+      <Tabs.Screen
         name="dashboard/index"
         options={{
           title: "Dashboard",
-          drawerLabel: "Dashboard",
+          tabBarLabel: "Dashboard",
+          tabBarIcon: ({ color, size }) => (
+            <LayoutDashboard size={size} color={color} strokeWidth={2} />
+          ),
         }}
       />
-      <Drawer.Screen
+      <Tabs.Screen
         name="contracts/index"
         options={{
-          title: "All Contracts",
-          drawerLabel: "All Contracts",
+          title: "Contracts",
+          tabBarLabel: "Contracts",
+          tabBarIcon: ({ color, size }) => (
+            <FileText size={size} color={color} strokeWidth={2} />
+          ),
         }}
       />
-      <Drawer.Screen
-        name="contracts/[id]/index"
+      <Tabs.Screen
+        name="messages/index"
         options={{
-          title: "Contract Details",
-          drawerLabel: "Contract Details",
-          drawerItemStyle: { display: "none" },
+          title: "Messages",
+          tabBarLabel: "Messages",
+          tabBarIcon: ({ color, size }) => (
+            <MessageCircle size={size} color={color} strokeWidth={2} />
+          ),
+          tabBarBadge: totalUnreadMessages > 0 ? totalUnreadMessages : undefined,
+          tabBarBadgeStyle: {
+            backgroundColor: colors.error,
+            fontSize: 10,
+            minWidth: 18,
+            height: 18,
+            borderRadius: 9,
+          },
         }}
       />
-      <Drawer.Screen
-        name="contracts/[id]/invoice"
-        options={{
-          title: "Invoice",
-          drawerLabel: "Invoice",
-          drawerItemStyle: { display: "none" },
-        }}
-      />
-      <Drawer.Screen
-        name="chat/[contractId]"
-        options={{
-          title: "Chat",
-          drawerLabel: "Chat",
-          drawerItemStyle: { display: "none" },
-        }}
-      />
-      <Drawer.Screen
-        name="notifications/index"
-        options={{
-          title: "Notifications",
-          drawerLabel: "Notifications",
-        }}
-      />
-      <Drawer.Screen
+      <Tabs.Screen
         name="profile/index"
         options={{
           title: "Profile",
-          drawerLabel: "Profile",
+          tabBarLabel: "Profile",
+          tabBarIcon: ({ color, size }) => (
+            <User size={size} color={color} strokeWidth={2} />
+          ),
         }}
       />
-    </Drawer>
+
+      {/* Hidden screens */}
+      <Tabs.Screen
+        name="contracts/[id]/index"
+        options={{ href: null, title: "Contract Details" }}
+      />
+      <Tabs.Screen
+        name="contracts/[id]/invoice"
+        options={{ href: null, title: "Invoice" }}
+      />
+      <Tabs.Screen
+        name="chat/[contractId]"
+        options={{ href: null, title: "Chat" }}
+      />
+      <Tabs.Screen
+        name="notifications/index"
+        options={{ href: null, title: "Notifications" }}
+      />
+      <Tabs.Screen
+        name="notifications/preferences"
+        options={{ href: null, title: "Notification Settings" }}
+      />
+      <Tabs.Screen
+        name="invoices/index"
+        options={{ href: null, title: "My Services" }}
+      />
+    </Tabs>
   );
 }

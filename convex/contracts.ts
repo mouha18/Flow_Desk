@@ -29,7 +29,33 @@ export const list = query({
         .query("contracts")
         .withIndex("by_freelancer", (q) => q.eq("freelancerId", userId))
         .collect();
-      return contracts;
+
+      // Resolve clientDisplayName for each contract via clientEmail → userEmails → users
+      const clientEmails = [...new Set(contracts.map(c => c.clientEmail?.toLowerCase()).filter(Boolean))];
+      
+      // Build email → name map from userEmails table
+      const userEmailRecords = await Promise.all(
+        clientEmails.map(email => 
+          ctx.db.query("userEmails").withIndex("by_email", q => q.eq("email", email)).first()
+        )
+      );
+      
+      const emailToName = new Map<string, string>();
+      await Promise.all(
+        userEmailRecords.map(async (record, idx) => {
+          if (record) {
+            const user = await ctx.db.get("users", record.userId);
+            if (user?.name) {
+              emailToName.set(clientEmails[idx], user.name);
+            }
+          }
+        })
+      );
+
+      return contracts.map(c => ({
+        ...c,
+        clientDisplayName: emailToName.get(c.clientEmail?.toLowerCase()) ?? c.clientEmail ?? "Client",
+      }));
     } else {
       const user = await ctx.db.get("users", userId);
       const userEmail = user?.email?.toLowerCase();
@@ -66,7 +92,7 @@ export const list = query({
 
       return uniqueContracts.map(c => ({
         ...c,
-        freelancerName: freelancerMap.get(c.freelancerId) ?? c.freelancerId,
+        freelancerDisplayName: freelancerMap.get(c.freelancerId) ?? c.freelancerId,
       }));
     }
   },

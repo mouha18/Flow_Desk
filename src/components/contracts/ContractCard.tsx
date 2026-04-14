@@ -1,5 +1,5 @@
 import React from "react";
-import { View, Text, StyleSheet, Pressable, ViewStyle } from "react-native";
+import { View, StyleSheet, Pressable, ViewStyle } from "react-native";
 import * as Haptics from "expo-haptics";
 import { colors } from "../../constants/colors";
 import { fontSizes, fontWeights } from "../../constants/typography";
@@ -7,6 +7,7 @@ import { borderRadius, spacing, shadows } from "../../constants/spacing";
 import { Contract, ContractStatus } from "../../types/index";
 import { Card } from "../ui/card";
 import { Badge } from "../ui/badge";
+import { Typography } from "../ui/typography";
 
 interface ContractCardProps {
   contract: Contract;
@@ -48,9 +49,9 @@ export function ContractCard({ contract, onPress, style, completionPercent: comp
     <Pressable onPress={handlePress}>
       <Card style={[styles.container, style]}>
         <View style={styles.header}>
-          <Text style={styles.title} numberOfLines={1}>
+          <Typography variant="body" style={styles.title} numberOfLines={1}>
             {contract.title}
-          </Text>
+          </Typography>
           <Badge
             label={statusLabels[contract.status]}
             variant={statusBadgeVariant[contract.status]}
@@ -59,29 +60,31 @@ export function ContractCard({ contract, onPress, style, completionPercent: comp
 
         {/* Show freelancer name for client view, client name for freelancer view */}
         <View style={styles.clientInfo}>
-          <Text style={styles.clientName}>
+          <Typography variant="bodySmall" color={colors.gray600}>
             {viewerRole === "client" && freelancerName
               ? freelancerName
-              : contract.clientName || contract.clientPseudo || contract.clientEmail}
-          </Text>
+              : (contract as any).clientDisplayName || contract.clientName || contract.clientPseudo || contract.clientEmail}
+          </Typography>
         </View>
 
         <View style={styles.footer}>
           <View style={styles.pricing}>
-            <Text style={styles.pricingLabel}>
+            <Typography variant="caption" color={colors.gray500} style={styles.pricingLabel}>
               {contract.pricingType === "fixed" ? "Fixed Price" : "Hourly"}
-            </Text>
-            <Text style={styles.pricingValue}>
+            </Typography>
+            <Typography variant="body" style={styles.pricingValue}>
               {contract.pricingType === "fixed"
                 ? `${contract.fixedPrice?.toFixed(2) || "0.00"}`
                 : contract.hourlyRate != null
                   ? `${contract.hourlyRate.toFixed(2)}/hr`
                   : "Hourly"}
-            </Text>
+            </Typography>
           </View>
 
           <View style={styles.completion}>
-            <Text style={styles.completionLabel}>Progress</Text>
+            <Typography variant="caption" color={colors.gray500} style={styles.completionLabel}>
+              Progress
+            </Typography>
             <View style={styles.progressBar}>
               <View
                 style={[
@@ -90,9 +93,9 @@ export function ContractCard({ contract, onPress, style, completionPercent: comp
                 ]}
               />
             </View>
-            <Text style={styles.completionValue}>
+            <Typography variant="bodySmall" color={colors.gray700} style={styles.completionValue}>
               {displayPercent}%
-            </Text>
+            </Typography>
           </View>
         </View>
       </Card>
@@ -120,10 +123,6 @@ const styles = StyleSheet.create({
   clientInfo: {
     marginBottom: spacing[4],
   },
-  clientName: {
-    fontSize: fontSizes.sm,
-    color: colors.gray600,
-  },
   footer: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -133,8 +132,6 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   pricingLabel: {
-    fontSize: fontSizes.xs,
-    color: colors.gray500,
     marginBottom: spacing[1],
     textTransform: "uppercase",
     letterSpacing: 0.5,
@@ -149,8 +146,6 @@ const styles = StyleSheet.create({
     alignItems: "flex-end",
   },
   completionLabel: {
-    fontSize: fontSizes.xs,
-    color: colors.gray500,
     marginBottom: spacing[1],
     textTransform: "uppercase",
     letterSpacing: 0.5,
@@ -165,12 +160,10 @@ const styles = StyleSheet.create({
   },
   progressFill: {
     height: "100%",
-    backgroundColor: colors.primary,
+    backgroundColor: colors.accent,
     borderRadius: borderRadius.full,
   },
   completionValue: {
-    fontSize: fontSizes.sm,
     fontWeight: fontWeights.medium,
-    color: colors.gray700,
   },
 });

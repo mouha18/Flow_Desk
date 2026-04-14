@@ -1,10 +1,11 @@
 import { useState } from "react";
-import { View, Text, TouchableOpacity, StyleSheet } from "react-native";
+import { View, TouchableOpacity, StyleSheet } from "react-native";
 import { WebView } from "react-native-webview";
 import { useRouter } from "expo-router";
 import { colors } from "src/constants/colors";
 import { borderRadius } from "src/constants/spacing";
 import { Ionicons } from "@expo/vector-icons";
+import { Heading, Typography } from "src/components/ui/typography";
 
 // Simple HTML content for Terms and Privacy
 const TERMS_HTML = `
@@ -85,7 +86,7 @@ export default function LegalScreen() {
         <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
           <Ionicons name="arrow-back" size={24} color={colors.gray900} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Legal</Text>
+        <Heading level="h4" style={styles.headerTitle}>Legal</Heading>
         <View style={styles.headerSpacer} />
       </View>
       <View style={styles.tabBar}>
@@ -93,13 +94,25 @@ export default function LegalScreen() {
           style={[styles.tab, activeTab === "terms" && styles.activeTab]}
           onPress={() => setActiveTab("terms")}
         >
-          <Text style={[styles.tabText, activeTab === "terms" && styles.activeTabText]}>Terms</Text>
+          <Typography
+            variant="label"
+            color={activeTab === "terms" ? colors.accent : colors.gray500}
+            style={activeTab === "terms" ? { fontWeight: "600" } : undefined}
+          >
+            Terms
+          </Typography>
         </TouchableOpacity>
         <TouchableOpacity
           style={[styles.tab, activeTab === "privacy" && styles.activeTab]}
           onPress={() => setActiveTab("privacy")}
         >
-          <Text style={[styles.tabText, activeTab === "privacy" && styles.activeTabText]}>Privacy</Text>
+          <Typography
+            variant="label"
+            color={activeTab === "privacy" ? colors.accent : colors.gray500}
+            style={activeTab === "privacy" ? { fontWeight: "600" } : undefined}
+          >
+            Privacy
+          </Typography>
         </TouchableOpacity>
       </View>
       <WebView
@@ -130,17 +143,12 @@ const styles = StyleSheet.create({
   headerTitle: {
     flex: 1,
     textAlign: "center",
-    fontSize: 18,
-    fontWeight: "600",
-    color: colors.gray900,
   },
   headerSpacer: {
     width: 40,
   },
   tabBar: { flexDirection: "row", borderBottomWidth: 1, borderBottomColor: colors.border },
   tab: { flex: 1, paddingVertical: 14, alignItems: "center" },
-  activeTab: { borderBottomWidth: 2, borderBottomColor: colors.primary },
-  tabText: { fontSize: 16, color: colors.gray500 },
-  activeTabText: { color: colors.primary, fontWeight: "600" },
+  activeTab: { borderBottomWidth: 2, borderBottomColor: colors.accent },
   webview: { flex: 1 },
 });

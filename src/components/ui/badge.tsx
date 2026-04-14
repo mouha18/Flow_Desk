@@ -4,7 +4,7 @@ import { colors } from "../../constants/colors";
 import { fontSizes } from "../../constants/typography";
 import { borderRadius, spacing } from "../../constants/spacing";
 
-type BadgeVariant = "default" | "success" | "warning" | "error" | "freelancer" | "client";
+export type BadgeVariant = "default" | "success" | "warning" | "error" | "accent" | "freelancer" | "client";
 
 interface BadgeProps {
   label: string;
@@ -23,7 +23,7 @@ const variantStyles: Record<BadgeVariant, { container: ViewStyle; text: { color:
   },
   success: {
     container: {
-      backgroundColor: "#D1FAE5",
+      backgroundColor: colors.successLight,
     },
     text: {
       color: colors.success,
@@ -31,7 +31,7 @@ const variantStyles: Record<BadgeVariant, { container: ViewStyle; text: { color:
   },
   warning: {
     container: {
-      backgroundColor: "#FEF3C7",
+      backgroundColor: colors.warningLight,
     },
     text: {
       color: colors.warning,
@@ -39,15 +39,23 @@ const variantStyles: Record<BadgeVariant, { container: ViewStyle; text: { color:
   },
   error: {
     container: {
-      backgroundColor: "#FEE2E2",
+      backgroundColor: colors.errorLight,
     },
     text: {
       color: colors.error,
     },
   },
+  accent: {
+    container: {
+      backgroundColor: colors.accentLight,
+    },
+    text: {
+      color: colors.accent,
+    },
+  },
   freelancer: {
     container: {
-      backgroundColor: "#D1FAE5",
+      backgroundColor: colors.freelancerLight,
     },
     text: {
       color: colors.freelancer,
@@ -55,7 +63,7 @@ const variantStyles: Record<BadgeVariant, { container: ViewStyle; text: { color:
   },
   client: {
     container: {
-      backgroundColor: "#EDE9FE",
+      backgroundColor: colors.clientLight,
     },
     text: {
       color: colors.client,

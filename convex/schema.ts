@@ -15,12 +15,12 @@ export default defineSchema({
     clientPseudo: v.optional(v.string()),
     title: v.string(),
     status: v.union(
-      v.literal("pending"),
-      v.literal("active"),
-      v.literal("completed"),
-      v.literal("declined"),
-      v.literal("finished"),
-      v.literal("disputed")
+      v.literal("pending"),      // Awaiting acceptance
+      v.literal("active"),        // Work in progress
+      v.literal("completed"),    // Deprecated: Work completed but not yet paid/escrow released (use "finished" instead)
+      v.literal("declined"),      // Offer declined by freelancer
+      v.literal("finished"),      // Work completed AND escrow released to freelancer (final state)
+      v.literal("disputed")       // Payment dispute in progress
     ),
     escrowStatus: v.optional(v.union(
       v.literal("held"),

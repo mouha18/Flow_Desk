@@ -47,6 +47,14 @@ function RootLayoutNav() {
           contentStyle: { backgroundColor: colors.gray50 },
         }}
       >
+        {/* Onboarding Stack */}
+        <Stack.Screen
+          name="(onboarding)"
+          options={{
+            headerShown: false,
+          }}
+        />
+
         {/* Auth Stack */}
         <Stack.Screen
           name="(auth)"

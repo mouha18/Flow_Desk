@@ -1,19 +1,24 @@
-import { View, StyleSheet, FlatList, TouchableOpacity, Text } from "react-native";
+import { View, StyleSheet, FlatList, TouchableOpacity } from "react-native";
 import { Stack, useRouter } from "expo-router";
+import { useQuery } from "convex/react";
+import { api } from "../../../convex/_generated/api";
 import { Heading, Typography, Screen, Card, SkeletonLoader } from "@/components/ui";
 import { ContractCard } from "@/components/contracts/ContractCard";
 import { useContracts } from "@/hooks/useContracts";
 import { useTasks } from "@/hooks/useTasks";
 import { colors } from "@/constants/colors";
 import { spacing } from "@/constants/spacing";
+import { Bell, FileText as FileTextIcon, Clock, CheckCircle } from "lucide-react-native";
 import type { Contract } from "@/types";
 
 export default function ClientDashboardScreen() {
   const router = useRouter();
   const { contracts, isLoading } = useContracts();
+  const notificationUnreadCount = useQuery(api.notifications.unreadCount) ?? 0;
 
   const pendingContracts = (contracts as Contract[]).filter(c => c.status === "pending");
   const activeContracts = (contracts as Contract[]).filter(c => c.status === "active");
+  const finishedContracts = (contracts as Contract[]).filter(c => c.status === "finished");
 
   const handleContractPress = (contract: Contract) => {
     router.push(`/(client)/contracts/${contract._id}`);
@@ -34,7 +39,7 @@ export default function ClientDashboardScreen() {
         style={styles.card}
         completionPercent={completionPercent}
         viewerRole="client"
-        freelancerName={contract.freelancerName || undefined}
+        freelancerName={contract.freelancerDisplayName || undefined}
       />
     );
   };
@@ -44,7 +49,21 @@ export default function ClientDashboardScreen() {
       <Stack.Screen
         options={{
           title: "Dashboard",
-          headerLargeTitle: true,
+          headerRight: () => (
+            <TouchableOpacity
+              onPress={() => router.push("/(client)/notifications" as any)}
+              style={{ marginRight: 16, padding: 4, position: "relative" }}
+            >
+              <Bell size={22} color={colors.gray700} strokeWidth={2} />
+              {notificationUnreadCount > 0 && (
+                <View style={styles.bellBadge}>
+                  <Typography variant="caption" color={colors.white} style={styles.bellBadgeText}>
+                    {notificationUnreadCount > 9 ? "9+" : notificationUnreadCount}
+                  </Typography>
+                </View>
+              )}
+            </TouchableOpacity>
+          ),
         }}
       />
       <Screen style={styles.container} scrollable={false}>
@@ -60,27 +79,71 @@ export default function ClientDashboardScreen() {
         ) : (
           <View style={styles.content}>
             <View style={styles.statsRow}>
-              <Card style={styles.statCard}>
-                <Typography variant="caption" color={colors.gray500}>
-                  Active Projects
-                </Typography>
-                <Heading level="h2" color={colors.client}>
-                  {activeContracts.length}
-                </Heading>
-              </Card>
-              <Card style={styles.statCard}>
-                <Typography variant="caption" color={colors.gray500}>
-                  Pending
-                </Typography>
-                <Heading level="h2" color={colors.warning}>
-                  {pendingContracts.length}
-                </Heading>
-              </Card>
+              <TouchableOpacity
+                style={styles.statCardTouchable}
+                onPress={() => router.push("/(client)/contracts" as any)}
+              >
+                <Card style={styles.statCard}>
+                  <View style={styles.statCardContent}>
+                    <View style={[styles.statIconCircle, { backgroundColor: colors.clientLight }]}>
+                      <FileTextIcon size={18} color={colors.client} strokeWidth={2} />
+                    </View>
+                    <View style={styles.statCardText}>
+                      <Typography variant="caption" color={colors.gray500}>
+                        Active Contracts
+                      </Typography>
+                      <Heading level="h3" color={colors.client}>
+                        {activeContracts.length}
+                      </Heading>
+                    </View>
+                  </View>
+                </Card>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.statCardTouchable}
+                onPress={() => router.push("/(client)/contracts" as any)}
+              >
+                <Card style={styles.statCard}>
+                  <View style={styles.statCardContent}>
+                    <View style={[styles.statIconCircle, { backgroundColor: colors.warningLight }]}>
+                      <Clock size={18} color={colors.warning} strokeWidth={2} />
+                    </View>
+                    <View style={styles.statCardText}>
+                      <Typography variant="caption" color={colors.gray500}>
+                        Pending
+                      </Typography>
+                      <Heading level="h3" color={colors.warning}>
+                        {pendingContracts.length}
+                      </Heading>
+                    </View>
+                  </View>
+                </Card>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.statCardTouchable}
+                onPress={() => router.push("/(client)/invoices" as any)}
+              >
+                <Card style={styles.statCard}>
+                  <View style={styles.statCardContent}>
+                    <View style={[styles.statIconCircle, { backgroundColor: colors.successLight }]}>
+                      <CheckCircle size={18} color={colors.success} strokeWidth={2} />
+                    </View>
+                    <View style={styles.statCardText}>
+                      <Typography variant="caption" color={colors.gray500}>
+                        Finished
+                      </Typography>
+                      <Heading level="h3" color={colors.success}>
+                        {finishedContracts.length}
+                      </Heading>
+                    </View>
+                  </View>
+                </Card>
+              </TouchableOpacity>
             </View>
 
             {activeContracts.length > 0 && (
               <View style={styles.progressSection}>
-                <Text style={styles.sectionTitle}>Active Contracts</Text>
+                <Heading level="h4" style={styles.sectionTitle}>Active Contracts</Heading>
                 {activeContracts.slice(0, 3).map((contract) => (
                   <TouchableOpacity
                     key={contract._id}
@@ -88,8 +151,12 @@ export default function ClientDashboardScreen() {
                     onPress={() => router.push(`/(client)/contracts/${contract._id}`)}
                   >
                     <View style={styles.progressHeader}>
-                      <Text style={styles.progressTitle} numberOfLines={1}>{contract.title}</Text>
-                      <Text style={styles.progressPercent}>{contract.completionPercent}%</Text>
+                      <Typography variant="bodySmall" color={colors.gray700} style={styles.progressTitle} numberOfLines={1}>
+                        {contract.title}
+                      </Typography>
+                      <Typography variant="bodySmall" color={colors.primary} style={styles.progressPercent}>
+                        {contract.completionPercent}%
+                      </Typography>
                     </View>
                     <View style={styles.progressBar}>
                       <View
@@ -102,7 +169,9 @@ export default function ClientDashboardScreen() {
                         ]}
                       />
                     </View>
-                    <Text style={styles.progressClient}>{contract.freelancerName ?? contract.clientEmail}</Text>
+                    <Typography variant="caption" color={colors.gray500}>
+                      {contract.freelancerDisplayName ?? "Freelancer"}
+                    </Typography>
                   </TouchableOpacity>
                 ))}
               </View>
@@ -127,17 +196,17 @@ export default function ClientDashboardScreen() {
             {contracts.length === 0 ? (
               <Card style={styles.emptyState}>
                 <View style={styles.emptyIcon}>
-                  <Typography style={styles.emptyIconText}>?</Typography>
+                  <FileTextIcon size={32} color={colors.gray400} strokeWidth={2} />
                 </View>
-                <Heading level="h3">No projects yet</Heading>
+                <Heading level="h3">No contracts yet</Heading>
                 <Typography variant="bodySmall" color={colors.gray500} style={styles.emptyText}>
-                  You'll see project invitations from freelancers here
+                  You'll see contract invitations from freelancers here
                 </Typography>
               </Card>
             ) : activeContracts.length > 0 ? (
               <View style={styles.section}>
                 <Heading level="h4" style={styles.sectionTitle}>
-                  Active Projects
+                  Active Contracts
                 </Heading>
                 <FlatList
                   data={activeContracts}
@@ -169,18 +238,45 @@ const styles = StyleSheet.create({
     gap: spacing[4],
   },
   statsRow: {
-    flexDirection: "row",
-    gap: spacing[4],
+    flexDirection: "column",
+    gap: spacing[3],
   },
-  statCardSkeleton: {
-    flex: 1,
-  },
-  listSkeleton: {
-    marginTop: spacing[2],
+  statCardTouchable: {
+    width: "100%",
   },
   statCard: {
-    flex: 1,
+    width: "100%",
+  },
+  statCardContent: {
+    flexDirection: "row",
     alignItems: "center",
+    gap: spacing[3],
+  },
+  statCardText: {
+    flex: 1,
+  },
+  statIconCircle: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  bellBadge: {
+    position: "absolute",
+    top: -2,
+    right: -2,
+    backgroundColor: colors.error,
+    borderRadius: 8,
+    minWidth: 16,
+    height: 16,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 3,
+  },
+  bellBadgeText: {
+    fontSize: 9,
+    fontWeight: "700",
   },
   section: {
     marginTop: spacing[2],
@@ -206,55 +302,43 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginBottom: spacing[4],
   },
-  emptyIconText: {
-    fontSize: 32,
-    color: colors.gray400,
-  },
   emptyText: {
     marginTop: spacing[2],
     textAlign: "center",
   },
   // Progress section styles
   progressSection: {
-    marginTop: spacing[6],
+    marginTop: spacing[4],
   },
   progressCard: {
-    backgroundColor: colors.surface,
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 12,
+    backgroundColor: colors.white,
+    borderRadius: spacing[3],
+    padding: spacing[4],
+    marginBottom: spacing[3],
   },
   progressHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: 8,
+    marginBottom: spacing[2],
   },
   progressTitle: {
-    fontSize: 14,
     fontWeight: "600",
-    color: colors.text,
     flex: 1,
-    marginRight: 8,
+    marginRight: spacing[2],
   },
   progressPercent: {
-    fontSize: 14,
     fontWeight: "700",
-    color: colors.primary,
   },
   progressBar: {
     height: 6,
     backgroundColor: colors.border,
     borderRadius: 3,
     overflow: "hidden",
-    marginBottom: 6,
+    marginBottom: spacing[1],
   },
   progressFill: {
     height: "100%",
     borderRadius: 3,
-  },
-  progressClient: {
-    fontSize: 12,
-    color: colors.textSecondary,
   },
 });

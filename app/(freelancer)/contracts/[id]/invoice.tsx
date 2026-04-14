@@ -200,7 +200,7 @@ export default function FreelancerInvoiceScreen() {
               {contract.title}
             </Typography>
             <Typography variant="bodySmall" color={colors.gray500}>
-              Client: {contract.clientName || contract.clientPseudo || contract.clientEmail}
+              Client: {contract.clientDisplayName || contract.clientName || contract.clientPseudo || contract.clientEmail}
             </Typography>
           </Card>
 
@@ -405,7 +405,7 @@ export default function FreelancerInvoiceScreen() {
                       <Typography variant="bodySmall" color={colors.gray600}>
                         {d.name}
                       </Typography>
-                      <Typography variant="bodySmall" color={colors.primary}>
+                      <Typography variant="bodySmall" color={colors.accent}>
                         {d.url}
                       </Typography>
                     </View>
@@ -570,7 +570,7 @@ const styles = StyleSheet.create({
     margin: spacing[4],
     marginTop: spacing[2],
     marginBottom: spacing[2],
-    backgroundColor: colors.primary + "08",
+    backgroundColor: colors.accentLight,
   },
   deliverableLink: {
     marginTop: spacing[2],

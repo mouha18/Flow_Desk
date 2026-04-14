@@ -58,6 +58,7 @@ export interface Contract {
   completionPercent: number;
   deliverableLink?: string;
   deliverables?: Deliverable[];
+  freelancerName?: string;
   _creationTime: number;
 }
 

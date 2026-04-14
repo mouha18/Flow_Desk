@@ -1,17 +1,17 @@
-import { View, StyleSheet, FlatList, Text } from "react-native";
-import { Stack } from "expo-router";
+import { View, StyleSheet, FlatList, TouchableOpacity } from "react-native";
+import { Stack, useRouter } from "expo-router";
 import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
-import { Typography, Card, Heading } from "@/components/ui";
+import { Typography, Card, Heading, Screen, Badge, Icon } from "@/components/ui";
 import { colors } from "@/constants/colors";
 import { spacing } from "@/constants/spacing";
 
 export default function FreelancerInvoicesScreen() {
+  const router = useRouter();
   const invoices = useQuery(api.invoices.listByFreelancer);
   const earnings = useQuery(api.invoices.getFreelancerEarnings);
 
   const totalPaidCount = (invoices ?? []).filter(inv => inv.status === "paid").length;
-
 
   const renderHeader = () => (
     <Card style={styles.summaryCard}>
@@ -27,11 +27,20 @@ export default function FreelancerInvoicesScreen() {
     </Card>
   );
 
-
   return (
     <>
-      <Stack.Screen options={{ title: "Earnings", headerLargeTitle: true }} />
-      <View style={styles.container}>
+      <Stack.Screen
+        options={{
+          title: "Invoices",
+          headerLargeTitle: true,
+          headerRight: () => (
+            <TouchableOpacity onPress={() => router.push("/(freelancer)/notifications")}>
+              <Icon name="bell" size="sm" color={colors.gray600} />
+            </TouchableOpacity>
+          ),
+        }}
+      />
+      <Screen style={styles.container} scrollable={false}>
         {renderHeader()}
         <FlatList
           data={invoices}
@@ -40,14 +49,16 @@ export default function FreelancerInvoicesScreen() {
           renderItem={({ item }) => (
             <Card style={styles.invoiceCard}>
               <View style={styles.invoiceHeader}>
-                <Typography variant="body" style={styles.contractTitle}>
-                  {item.contractId.slice(0, 8)}...
-                </Typography>
-                <View style={[styles.statusBadge, { backgroundColor: (item.status === "paid" ? colors.success : colors.warning) + "20" }]}>
-                  <Text style={[styles.statusText, { color: item.status === "paid" ? colors.success : colors.warning }]}>
-                    {item.status === "paid" ? "Paid" : item.status}
-                  </Text>
+                <View style={styles.invoiceLabelRow}>
+                  <Icon name="receipt" size="xs" color={colors.gray400} />
+                  <Typography variant="bodySmall" color={colors.gray500}>
+                    Invoice
+                  </Typography>
                 </View>
+                <Badge
+                  label={item.status === "paid" ? "Paid" : item.status}
+                  variant={item.status === "paid" ? "success" : "warning"}
+                />
               </View>
               <Heading level="h3" color={colors.gray900}>
                 ${item.total?.toFixed(2) || "0.00"}
@@ -59,13 +70,14 @@ export default function FreelancerInvoicesScreen() {
           )}
           ListEmptyComponent={
             <Card style={styles.emptyCard}>
+              <Icon name="wallet" size="xl" color={colors.gray300} style={styles.emptyIcon} />
               <Typography variant="body" color={colors.gray500}>
                 No earnings yet
               </Typography>
             </Card>
           }
         />
-      </View>
+      </Screen>
     </>
   );
 }
@@ -92,20 +104,16 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginBottom: spacing[2],
   },
-  contractTitle: {
-    color: colors.gray500,
-  },
-  statusBadge: {
-    paddingHorizontal: spacing[2],
-    paddingVertical: spacing[1],
-    borderRadius: 4,
-  },
-  statusText: {
-    fontSize: 12,
-    fontWeight: "600",
+  invoiceLabelRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing[1],
   },
   emptyCard: {
     alignItems: "center",
     padding: spacing[8],
+  },
+  emptyIcon: {
+    marginBottom: spacing[3],
   },
 });

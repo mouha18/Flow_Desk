@@ -1,4 +1,4 @@
-import { StyleSheet, View, ScrollView, Alert, Pressable, Text, Linking } from "react-native";
+import { StyleSheet, View, ScrollView, Alert, Pressable, Linking } from "react-native";
 import { Stack, useRouter, useLocalSearchParams } from "expo-router";
 import { useQuery, useMutation } from "convex/react";
 import { useState } from "react";
@@ -249,7 +249,7 @@ export default function ClientContractDetailScreen() {
                   </Typography>
                   {contract.deliverables.map((d: any, i: number) => (
                     <Pressable key={i} onPress={() => Linking.openURL(d.url)}>
-                      <Text style={styles.deliverableLink}>{d.name}</Text>
+                      <Typography variant="bodySmall" color={colors.accent} style={styles.deliverableLink}>{d.name}</Typography>
                     </Pressable>
                   ))}
                 </View>
@@ -258,13 +258,13 @@ export default function ClientContractDetailScreen() {
               {!showDisputeForm ? (
                 <View style={styles.approvalButtons}>
                   <Button
-                    title="Pas satisfait du service"
+                    title="Not Satisfied"
                     variant="outline"
                     onPress={() => setShowDisputeForm(true)}
                     style={styles.halfButton}
                   />
                   <Button
-                    title="Satisfait du service"
+                    title="Satisfied"
                     variant="primary"
                     onPress={() => handleApprove()}
                     style={styles.halfButton}
@@ -367,8 +367,7 @@ const styles = StyleSheet.create({
     marginBottom: spacing[2],
   },
   deliverableLink: {
-    color: colors.primary,
-    textDecorationLine: "underline",
+    textDecorationLine: "underline" as const,
     marginTop: spacing[1],
   },
   approvalButtons: {

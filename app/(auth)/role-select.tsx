@@ -7,6 +7,7 @@ import { Button, Heading, Typography, Screen, Card } from "@/components/ui";
 import { colors } from "@/constants/colors";
 import { spacing } from "@/constants/spacing";
 import { storage } from "@/lib/storage";
+import { Briefcase, Building2, CheckCircle } from "lucide-react-native";
 import type { UserRole } from "@/types";
 
 export default function RoleSelectScreen() {
@@ -40,7 +41,7 @@ export default function RoleSelectScreen() {
     <Screen style={styles.container}>
       <View style={styles.content}>
         <View style={styles.header}>
-          <Heading level="h1">How will you use Flowdesk?</Heading>
+          <Heading level="h1" style={{ color: colors.gray900 }}>How will you use FlowDesk?</Heading>
           <Typography variant="bodySmall" color={colors.gray500} style={styles.subtitle}>
             Choose your primary role. You can always switch later.
           </Typography>
@@ -62,14 +63,19 @@ export default function RoleSelectScreen() {
                 selectedRole === "freelancer" && styles.cardSelected,
               ]}
             >
+              {selectedRole === "freelancer" && (
+                <View style={styles.checkIcon}>
+                  <CheckCircle size={24} color={colors.freelancer} strokeWidth={2.5} />
+                </View>
+              )}
               <View style={styles.iconContainer}>
-                <Typography style={styles.iconText}>F</Typography>
+                <Briefcase size={28} color={colors.white} strokeWidth={2} />
               </View>
               <Heading level="h3" color={selectedRole === "freelancer" ? colors.freelancer : colors.gray900}>
                 Freelancer
               </Heading>
               <Typography variant="bodySmall" color={colors.gray500} style={styles.description}>
-                Create contracts, manage tasks, track time, and get paid
+                Create contracts, manage tasks, track time, and generate invoices
               </Typography>
             </Card>
           </Pressable>
@@ -89,14 +95,19 @@ export default function RoleSelectScreen() {
                 selectedRole === "client" && styles.cardSelected,
               ]}
             >
+              {selectedRole === "client" && (
+                <View style={styles.checkIcon}>
+                  <CheckCircle size={24} color={colors.client} strokeWidth={2.5} />
+                </View>
+              )}
               <View style={[styles.iconContainer, styles.clientIcon]}>
-                <Typography style={styles.iconText}>C</Typography>
+                <Building2 size={28} color={colors.white} strokeWidth={2} />
               </View>
               <Heading level="h3" color={selectedRole === "client" ? colors.client : colors.gray900}>
                 Client
               </Heading>
               <Typography variant="bodySmall" color={colors.gray500} style={styles.description}>
-                Review proposals, approve work, pay invoices, and chat
+                Review proposals, track progress, communicate, and pay invoices
               </Typography>
             </Card>
           </Pressable>
@@ -108,6 +119,8 @@ export default function RoleSelectScreen() {
           disabled={!selectedRole}
           loading={isLoading}
           fullWidth
+          style={{ backgroundColor: colors.accent }}
+          textStyle={{ color: colors.white }}
         />
       </View>
     </Screen>
@@ -145,10 +158,16 @@ const styles = StyleSheet.create({
   card: {
     alignItems: "center",
     padding: spacing[6],
+    position: "relative",
   },
   cardSelected: {
     borderWidth: 2,
-    borderColor: colors.primary,
+    borderColor: colors.accent,
+  },
+  checkIcon: {
+    position: "absolute",
+    top: spacing[3],
+    right: spacing[3],
   },
   iconContainer: {
     width: 56,
@@ -161,11 +180,6 @@ const styles = StyleSheet.create({
   },
   clientIcon: {
     backgroundColor: colors.client,
-  },
-  iconText: {
-    fontSize: 24,
-    fontWeight: "bold",
-    color: colors.white,
   },
   description: {
     marginTop: spacing[2],

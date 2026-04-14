@@ -6,6 +6,7 @@ import { colors } from "@/constants/colors";
 import { spacing } from "@/constants/spacing";
 import { useAuthActions } from "@convex-dev/auth/react";
 import { useAuth } from "@/hooks/use-auth";
+import { Briefcase } from "lucide-react-native";
 
 export default function LoginScreen() {
   const router = useRouter();
@@ -60,11 +61,18 @@ export default function LoginScreen() {
 
   return (
     <Screen style={styles.container}>
+      <View style={styles.accentLine} />
       <View style={styles.content}>
         <View style={styles.header}>
-          <Heading level="h1">Welcome back</Heading>
+          <View style={styles.brandContainer}>
+            <View style={styles.brandIcon}>
+              <Briefcase size={32} color={colors.white} strokeWidth={2} />
+            </View>
+            <Heading level="h2" style={styles.brandName}>FlowDesk</Heading>
+          </View>
+          <Heading level="h1" style={{ color: colors.gray900 }}>Welcome back</Heading>
           <Typography variant="bodySmall" color={colors.gray500}>
-            Sign in to continue to Flowdesk
+            Sign in to continue to FlowDesk
           </Typography>
         </View>
 
@@ -98,24 +106,33 @@ export default function LoginScreen() {
             onPress={handleLogin}
             loading={isLoading}
             fullWidth
+            style={{ backgroundColor: colors.accent }}
+            textStyle={{ color: colors.white }}
           />
 
           <TouchableOpacity onPress={() => router.push("/(auth)/legal")}>
-            <Typography variant="bodySmall" color={colors.primary} style={styles.legalLink}>
+            <Typography variant="bodySmall" color={colors.gray500} style={styles.legalLink}>
               Terms & Privacy
             </Typography>
           </TouchableOpacity>
         </View>
 
         <View style={styles.footer}>
-          <Typography variant="bodySmall" color={colors.gray500}>
-            Don't have an account?{" "}
-          </Typography>
-          <Link href="/(auth)/register">
-            <Typography variant="bodySmall" color={colors.primary} style={styles.link}>
-              Create one
+          <TouchableOpacity onPress={() => router.push("/(onboarding)/welcome")}>
+            <Typography variant="bodySmall" color={colors.accent} style={styles.link}>
+              Learn more about FlowDesk
             </Typography>
-          </Link>
+          </TouchableOpacity>
+          <View style={styles.footerRow}>
+            <Typography variant="bodySmall" color={colors.gray500}>
+              Don't have an account?{" "}
+            </Typography>
+            <Link href="/(auth)/register">
+              <Typography variant="bodySmall" color={colors.accent} style={styles.link}>
+                Create one
+              </Typography>
+            </Link>
+          </View>
         </View>
       </View>
     </Screen>
@@ -126,6 +143,11 @@ const styles = StyleSheet.create({
   container: {
     backgroundColor: colors.white,
   },
+  accentLine: {
+    height: 4,
+    backgroundColor: colors.accent,
+    width: "100%",
+  },
   content: {
     flex: 1,
     justifyContent: "center",
@@ -134,6 +156,23 @@ const styles = StyleSheet.create({
   header: {
     marginBottom: spacing[8],
   },
+  brandContainer: {
+    alignItems: "center",
+    marginBottom: spacing[6],
+  },
+  brandIcon: {
+    width: 64,
+    height: 64,
+    borderRadius: 16,
+    backgroundColor: colors.accent,
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: spacing[3],
+  },
+  brandName: {
+    color: colors.gray900,
+    letterSpacing: -0.5,
+  },
   form: {
     marginBottom: spacing[6],
   },
@@ -141,6 +180,10 @@ const styles = StyleSheet.create({
     marginBottom: spacing[4],
   },
   footer: {
+    alignItems: "center",
+    gap: spacing[3],
+  },
+  footerRow: {
     flexDirection: "row",
     justifyContent: "center",
     alignItems: "center",
