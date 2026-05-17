@@ -58,6 +58,19 @@ interface OpenRouterResponse {
 }
 
 /**
+ * Escape HTML special characters to prevent injection attacks.
+ * Converts &, <, >, ", and ' to their HTML entity equivalents.
+ */
+function escapeHtml(text: string): string {
+  return text
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+/**
  * Call OpenRouter with model fallback. Tries each model in the chain
  * until one succeeds (HTTP 200). Returns raw response JSON on success.
  * Returns null if all models fail or no API key is set.
@@ -230,7 +243,7 @@ export const generateOutreachEmail = action({
       const emailResult = await ctx.runAction(internalTyped.email.sendEmail, {
         to: args.clientEmail,
         subject,
-        html: `<p>${body.replace(/\n/g, "<br>")}</p>`,
+        html: `<p>${escapeHtml(body).replace(/\n/g, "<br>")}</p>`,
       });
       console.log("[AI] Email sent:", emailResult);
     } else {
