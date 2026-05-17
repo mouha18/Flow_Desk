@@ -227,14 +227,13 @@ const styles = StyleSheet.create({
     marginTop: spacing[3],
   },
   actions: {
-    flexDirection: "row",
     padding: spacing[4],
     gap: spacing[3],
   },
   actionButton: {
-    flex: 1,
+    width: "100%",
   },
   fullButton: {
-    width: '100%',
+    width: "100%",
   },
 });

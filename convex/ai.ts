@@ -10,9 +10,121 @@ import { api, internal } from "./_generated/api";
 const internalTyped = internal as any;
 
 /**
- * OpenRouter API integration for AI-powered email generation.
- * Uses free models available on OpenRouter tier.
+ * OpenRouter AI integration for AI-powered email and invoice generation.
+ *
+ * Model Fallback Chain:
+ * Tries models in order of preference. If one fails or is rate-limited,
+ * falls back to the next. Uses free models with low traffic to maximize
+ * availability. Configured via OPENROUTER_API_KEY in environment.
+ *
+ * Free model priority (low traffic, reliable):
+ * 1. google/gemini-2.0-flash-exp:free  — best quality, fast, Google infrastructure
+ * 2. qwen/qwen2.5-7b-instruct:free     — good for structured JSON, Alibaba Cloud
+ * 3. meta-llama/llama-3.2-3b-instruct:free — open weights, moderate quality
+ * 4. mistralai/mistral-nemo:free       — Mistral's base model, decent quality
  */
+
+const MODEL_FALLBACK_CHAIN = [
+  "google/gemini-2.0-flash-exp:free",
+  "qwen/qwen2.5-7b-instruct:free",
+  "meta-llama/llama-3.2-3b-instruct:free",
+  "mistralai/mistral-nemo:free",
+];
+
+const OPENROUTER_API_URL = "https://openrouter.ai/api/v1/chat/completions";
+
+interface OpenRouterMessage {
+  role: "system" | "user" | "assistant";
+  content: string;
+}
+
+interface OpenRouterRequest {
+  model: string;
+  messages: OpenRouterMessage[];
+  temperature: number;
+  max_tokens: number;
+}
+
+interface OpenRouterResponse {
+  choices?: Array<{
+    message?: {
+      content?: string;
+    };
+  }>;
+  error?: {
+    message?: string;
+    code?: string;
+  };
+}
+
+/**
+ * Call OpenRouter with model fallback. Tries each model in the chain
+ * until one succeeds (HTTP 200). Returns raw response JSON on success.
+ * Returns null if all models fail or no API key is set.
+ */
+async function callOpenRouterWithFallback(
+  prompt: string,
+  temperature: number = 0.7,
+  maxTokens: number = 500
+): Promise<OpenRouterResponse | null> {
+  const apiKey = process.env.OPENROUTER_API_KEY;
+  if (!apiKey) return null;
+
+  const messages: OpenRouterMessage[] = [{ role: "user", content: prompt }];
+
+  for (const model of MODEL_FALLBACK_CHAIN) {
+    try {
+      const response = await fetch(OPENROUTER_API_URL, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          "Content-Type": "application/json",
+          "HTTP-Referer": "https://flowdesk.app",
+          "X-Title": "FlowDesk",
+        },
+        body: JSON.stringify({
+          model,
+          messages,
+          temperature,
+          max_tokens: maxTokens,
+        } satisfies OpenRouterRequest),
+      });
+
+      if (response.ok) {
+        const data = (await response.json()) as OpenRouterResponse;
+        // Check if the model returned actual content or an error
+        if (!data.error && data.choices?.[0]?.message?.content) {
+          console.log(`[AI] Success with model: ${model}`);
+          return data;
+        }
+        // If model returned an error or empty content, try next model
+        if (data.error) {
+          console.warn(`[AI] Model ${model} returned error: ${data.error.message}. Trying next model...`);
+          continue;
+        }
+      } else if (response.status === 429 || response.status >= 500) {
+        // Rate limited or server error — try next model
+        console.warn(`[AI] Model ${model} returned ${response.status}. Trying next model...`);
+        continue;
+      } else {
+        // Client error (4xx except 429) — don't try other models
+        console.error(`[AI] Model ${model} returned HTTP ${response.status}. Not trying fallback.`);
+        break;
+      }
+    } catch (err) {
+      console.warn(`[AI] Model ${model} failed with exception: ${err}. Trying next model...`);
+      continue;
+    }
+  }
+
+  // All models failed
+  console.error("[AI] All models in fallback chain failed.");
+  return null;
+}
+
+// ============================================================================
+// Email Generation
+// ============================================================================
 
 // Build the prompt for outreach email generation based on tone
 function buildEmailPrompt(args: {
@@ -56,8 +168,8 @@ Return your response as a JSON object with exactly this structure:
 Only return valid JSON, no additional text.`;
 }
 
-// Parse the AI response
-function parseEmailResponse(data: any): { subject: string; body: string } {
+// Parse the AI response for email generation
+function parseEmailResponse(data: OpenRouterResponse): { subject: string; body: string } {
   try {
     const content = data.choices?.[0]?.message?.content;
     if (!content) {
@@ -65,8 +177,9 @@ function parseEmailResponse(data: any): { subject: string; body: string } {
     }
 
     // Extract JSON from response (might be wrapped in markdown code blocks)
-    const jsonMatch = content.match(/```(?:json)?\s*([\s\S]*?)\s*```/) || content.match(/\{[\s\S]*\}/);
-    const jsonStr = jsonMatch ? jsonMatch[1] || jsonMatch[0] : content;
+    const jsonMatch =
+      content.match(/```(?:json)?\s*([\s\S]*?)\s*```/) || content.match(/\{[\s\S]*\}/);
+    const jsonStr = jsonMatch ? (jsonMatch[1] || jsonMatch[0]) : content;
 
     const parsed = JSON.parse(jsonStr.trim());
     return {
@@ -74,7 +187,7 @@ function parseEmailResponse(data: any): { subject: string; body: string } {
       body: parsed.body || "",
     };
   } catch (error) {
-    console.error("Error parsing email response:", error);
+    console.error("[AI] Error parsing email response:", error);
     // Return fallback
     return {
       subject: "Project Proposal",
@@ -84,8 +197,8 @@ function parseEmailResponse(data: any): { subject: string; body: string } {
 }
 
 /**
- * Generate outreach email using OpenRouter AI
- * Uses google/gemini-2.0-flash-exp:free model (no API cost)
+ * Generate outreach email using OpenRouter AI with model fallback.
+ * Tries free models in priority order until one succeeds.
  */
 export const generateOutreachEmail = action({
   args: {
@@ -97,65 +210,43 @@ export const generateOutreachEmail = action({
   },
   returns: v.object({ subject: v.string(), body: v.string() }),
   handler: async (ctx, args) => {
-    const apiKey = process.env.OPENROUTER_API_KEY;
     const resendApiKey = process.env.RESEND_API_KEY;
 
     let subject = `Project Proposal: ${args.contractTitle}`;
     let body = `Dear ${args.clientName},\n\nI'm ${args.freelancerName} and I'm excited about the opportunity to work on "${args.contractTitle}".\n\nI'd love to discuss this project with you further. Please let me know a convenient time for a call.\n\nBest regards,\n${args.freelancerName}`;
 
-    // Try to generate email with AI if API key is available
-    if (apiKey) {
-      const prompt = buildEmailPrompt(args);
-      try {
-        const response = await fetch(
-          "https://openrouter.ai/api/v1/chat/completions",
-          {
-            method: "POST",
-            headers: {
-              Authorization: `Bearer ${apiKey}`,
-              "Content-Type": "application/json",
-              "HTTP-Referer": "https://flowdesk.app",
-              "X-Title": "FlowDesk",
-            },
-            body: JSON.stringify({
-              model: "google/gemini-2.0-flash-exp:free",
-              messages: [{ role: "user", content: prompt }],
-              temperature: 0.7,
-              max_tokens: 500,
-            }),
-          }
-        );
+    // Try AI generation with model fallback
+    const prompt = buildEmailPrompt(args);
+    const aiResult = await callOpenRouterWithFallback(prompt, 0.7, 500);
 
-        if (response.ok) {
-          const data = await response.json();
-          const parsed = parseEmailResponse(data);
-          subject = parsed.subject;
-          body = parsed.body;
-        }
-      } catch (error) {
-        console.error("OpenRouter API error:", error);
-      }
+    if (aiResult) {
+      const parsed = parseEmailResponse(aiResult);
+      subject = parsed.subject;
+      body = parsed.body;
     }
 
     // Send the email via Resend
     if (resendApiKey) {
-      const internalTyped = internal as any;
       const emailResult = await ctx.runAction(internalTyped.email.sendEmail, {
         to: args.clientEmail,
         subject,
         html: `<p>${body.replace(/\n/g, "<br>")}</p>`,
       });
-      console.log("Email sent:", emailResult);
+      console.log("[AI] Email sent:", emailResult);
     } else {
-      console.log("RESEND_API_KEY not set. Email not sent. Subject:", subject);
+      console.log("[AI] RESEND_API_KEY not set. Email not sent. Subject:", subject);
     }
 
     return { subject, body };
   },
 });
 
+// ============================================================================
+// Invoice Generation
+// ============================================================================
+
 // Helper to parse invoice line items from AI response
-function parseInvoiceResponse(data: any): {
+function parseInvoiceResponse(data: OpenRouterResponse): {
   lineItems: { description: string; hours: number; rate: number; amount: number }[];
   notes: string;
 } {
@@ -166,8 +257,9 @@ function parseInvoiceResponse(data: any): {
     }
 
     // Extract JSON from response (might be wrapped in markdown code blocks)
-    const jsonMatch = content.match(/```(?:json)?\s*([\s\S]*?)\s*```/) || content.match(/\{[\s\S]*\}/);
-    const jsonStr = jsonMatch ? jsonMatch[1] || jsonMatch[0] : content;
+    const jsonMatch =
+      content.match(/```(?:json)?\s*([\s\S]*?)\s*```/) || content.match(/\{[\s\S]*\}/);
+    const jsonStr = jsonMatch ? (jsonMatch[1] || jsonMatch[0]) : content;
 
     const parsed = JSON.parse(jsonStr.trim());
 
@@ -176,8 +268,7 @@ function parseInvoiceResponse(data: any): {
       notes: parsed.notes || "",
     };
   } catch (error) {
-    console.error("Error parsing invoice response:", error);
-    // Return fallback based on completed tasks
+    console.error("[AI] Error parsing invoice response:", error);
     return {
       lineItems: [],
       notes: "AI invoice generation failed. Please enter line items manually.",
@@ -204,7 +295,7 @@ Generate a professional invoice based on the following completed tasks:
 Contract: ${contractTitle}
 
 Completed Tasks:
-${tasksList}
+${tasksList || "No completed tasks found."}
 
 Requirements:
 1. Create a line item for each completed task
@@ -230,8 +321,8 @@ Only return valid JSON, no additional text.`;
 }
 
 /**
- * Generate invoice from completed tasks using OpenRouter AI
- * Uses google/gemini-2.0-flash-exp:free model (no API cost)
+ * Generate invoice from completed tasks using OpenRouter AI with model fallback.
+ * Tries free models in priority order until one succeeds.
  */
 export const generateInvoiceFromTasks = action({
   args: {
@@ -241,20 +332,24 @@ export const generateInvoiceFromTasks = action({
       title: v.string(),
       hourlyRate: v.optional(v.number()),
     }),
-    tasks: v.array(v.object({
-      title: v.string(),
-      hourlyRate: v.optional(v.number()),
-      timeSpent: v.optional(v.number()),
-      status: v.string(),
-    })),
+    tasks: v.array(
+      v.object({
+        title: v.string(),
+        hourlyRate: v.optional(v.number()),
+        timeSpent: v.optional(v.number()),
+        status: v.string(),
+      })
+    ),
   },
   returns: v.object({
-    lineItems: v.array(v.object({
-      description: v.string(),
-      hours: v.number(),
-      rate: v.number(),
-      amount: v.number(),
-    })),
+    lineItems: v.array(
+      v.object({
+        description: v.string(),
+        hours: v.number(),
+        rate: v.number(),
+        amount: v.number(),
+      })
+    ),
     subtotal: v.number(),
     tax: v.number(),
     total: v.number(),
@@ -265,47 +360,29 @@ export const generateInvoiceFromTasks = action({
     const { contract, tasks } = args;
     const completedTasks = (tasks || []).filter((t: any) => t.status === "completed");
 
-    let lineItems: { description: string; hours: number; rate: number; amount: number }[] = [];
+    let lineItems: { description: string; hours: number; rate: number; amount: number }[] =
+      [];
     let notes = "AI-generated invoice from completed tasks.";
+    let aiGenerated = false;
 
-    // Try to generate with AI
-    const apiKey = process.env.OPENROUTER_API_KEY;
-    if (apiKey && completedTasks.length > 0) {
+    // Try AI generation with model fallback
+    if (completedTasks.length > 0) {
       const prompt = buildInvoicePrompt(contract.title, completedTasks);
-      try {
-        const response = await fetch(
-          "https://openrouter.ai/api/v1/chat/completions",
-          {
-            method: "POST",
-            headers: {
-              Authorization: `Bearer ${apiKey}`,
-              "Content-Type": "application/json",
-              "HTTP-Referer": "https://flowdesk.app",
-              "X-Title": "FlowDesk",
-            },
-            body: JSON.stringify({
-              model: "google/gemini-2.0-flash-exp:free",
-              messages: [{ role: "user", content: prompt }],
-              temperature: 0.3,
-              max_tokens: 800,
-            }),
-          }
-        );
+      const aiResult = await callOpenRouterWithFallback(prompt, 0.3, 800);
 
-        if (response.ok) {
-          const data = await response.json();
-          const parsed = parseInvoiceResponse(data);
-          // Convert null values to undefined for Convex validator compatibility
-          lineItems = parsed.lineItems.map(item => ({
+      if (aiResult) {
+        const parsed = parseInvoiceResponse(aiResult);
+        if (parsed.lineItems.length > 0) {
+          // Convert null values to 0 for Convex validator compatibility
+          lineItems = parsed.lineItems.map((item) => ({
             description: item.description,
             hours: item.hours ?? 0,
             rate: item.rate ?? 0,
             amount: item.amount,
           }));
           notes = parsed.notes;
+          aiGenerated = true;
         }
-      } catch (error) {
-        console.error("OpenRouter API error for invoice:", error);
       }
     }
 
@@ -322,6 +399,7 @@ export const generateInvoiceFromTasks = action({
         };
       });
       notes = "Invoice generated from task tracking data.";
+      aiGenerated = false;
     }
 
     // Calculate totals
@@ -337,7 +415,7 @@ export const generateInvoiceFromTasks = action({
       tax,
       total,
       notes,
-      aiGenerated: lineItems.length > 0,
+      aiGenerated,
     });
 
     return {
@@ -346,7 +424,7 @@ export const generateInvoiceFromTasks = action({
       tax,
       total,
       notes,
-      aiGenerated: lineItems.length > 0,
+      aiGenerated,
     };
   },
 });
