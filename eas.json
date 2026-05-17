@@ -1,0 +1,33 @@
+{
+  "cli": {
+    "version": ">= 18.13.0",
+    "appVersionSource": "remote"
+  },
+  "build": {
+    "development": {
+      "developmentClient": true,
+      "distribution": "internal",
+      "env": {
+        "CONVEX_DEPLOYMENT": "dev:quixotic-kudu-80",
+        "EXPO_PUBLIC_CONVEX_URL": "https://quixotic-kudu-80.eu-west-1.convex.cloud"
+      }
+    },
+    "preview": {
+      "distribution": "internal",
+      "env": {
+        "CONVEX_DEPLOYMENT": "prod:quixotic-kudu-80",
+        "EXPO_PUBLIC_CONVEX_URL": "https://quixotic-kudu-80.eu-west-1.convex.cloud"
+      }
+    },
+    "production": {
+      "autoIncrement": true,
+      "env": {
+        "CONVEX_DEPLOYMENT": "prod:quixotic-kudu-80",
+        "EXPO_PUBLIC_CONVEX_URL": "https://quixotic-kudu-80.eu-west-1.convex.cloud"
+      }
+    }
+  },
+  "submit": {
+    "production": {}
+  }
+}
